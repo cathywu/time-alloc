@@ -85,9 +85,10 @@ class CalendarSolver:
         def obj_expression(model):
             # return -(summation(model.utilities, model.A))
             # TODO(cathywu) this objective may slow things down, not solvable
-            #  via glpk
-            return -(summation(model.utilities, model.A) + pe.summation(
-                model.C3))
+            # via glpk
+            return -(summation(model.utilities, model.A) + 6 * pe.summation(
+                model.C6) + 4 * pe.summation(model.C4) + 3 * pe.summation(
+                model.C3) + pe.summation(model.C2))
 
         # self.model.exp_cost = Expression(rule=obj_expression)
         # self.model.obj_cost = Objective(rule=self.model.exp_cost)
@@ -127,6 +128,40 @@ class CalendarSolver:
                                                         rule=rule)
 
     def _constraints_chunking(self):
+        chunk_min = np.array([0, 0, 1, 1, 1, 0, 0])
+        chunk_mic = np.array([0, 0, 1, 1, 1, 0, 0])
+        chunk_max = np.array([0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0])
+        # chunk4 = np.array([1, 1, 1, 1])
+
+        offset = 2
+        c3len = self.num_timeslots - chunk3.size + 1 + offset * 2
+        self.model.c3timeslots = RangeSet(1, c3len)
+        L0, b0 = util.linop_from_1d_filter(chunk3, self.num_timeslots,
+                                           offset=offset)
+        L1, b1 = util.linop_from_1d_filter(1-chunk3, self.num_timeslots,
+                                           offset=offset)
+        self.model.cL30 = Param(self.model.c3timeslots * self.model.timeslots,
+                                initialize=fill_from_2d_array(L0))
+        self.model.cL31 = Param(self.model.c3timeslots * self.model.timeslots,
+                                initialize=fill_from_2d_array(L1))
+
+        self.model.C3 = Var(self.model.c3timeslots * self.model.tasks,
+                            domain=pe.Integers)
+
+        def rule(model, i, j):
+            total0 = sum(
+                model.cL30[i, k] * model.A[k, j] for k in model.timeslots) + \
+                     b0[i-1]
+            total1 = sum(
+                model.cL31[i, k] * (1-model.A[k, j]) for k in model.timeslots)
+            total = total0 + total1
+            return - 1 + 1e-2, model.C3[i, j] - total / chunk3.size, 1e-2
+            # return - 1, model.C3[i, j] - total / chunk3.size, 0
+
+        self.model.constrain_chunking1 = Constraint(self.model.c3timeslots,
+                                                    self.model.tasks, rule=rule)
+
+    def _constraints_chunking3(self):
         chunk3 = np.array([0, 0, 1, 1, 1, 0, 0])
         # chunk4 = np.array([1, 1, 1, 1])
 
@@ -137,9 +172,9 @@ class CalendarSolver:
                                            offset=offset)
         L1, b1 = util.linop_from_1d_filter(1-chunk3, self.num_timeslots,
                                             offset=offset)
-        self.model.cL0 = Param(self.model.c3timeslots * self.model.timeslots,
+        self.model.cL30 = Param(self.model.c3timeslots * self.model.timeslots,
                                    initialize=fill_from_2d_array(L0))
-        self.model.cL1 = Param(self.model.c3timeslots * self.model.timeslots,
+        self.model.cL31 = Param(self.model.c3timeslots * self.model.timeslots,
                                initialize=fill_from_2d_array(L1))
 
         self.model.C3 = Var(self.model.c3timeslots * self.model.tasks,
@@ -147,10 +182,10 @@ class CalendarSolver:
 
         def rule(model, i, j):
             total0 = sum(
-                model.cL0[i, k] * model.A[k, j] for k in model.timeslots) + \
+                model.cL30[i, k] * model.A[k, j] for k in model.timeslots) + \
                      b0[i-1]
             total1 = sum(
-                model.cL1[i, k] * (1-model.A[k, j]) for k in model.timeslots)
+                model.cL31[i, k] * (1-model.A[k, j]) for k in model.timeslots)
             total = total0 + total1
             return - 1 + 1e-2, model.C3[i, j] - total / chunk3.size, 1e-2
             # return - 1, model.C3[i, j] - total / chunk3.size, 0
@@ -168,6 +203,108 @@ class CalendarSolver:
 
         # self.model.constrain_chunking2 = Constraint(self.model.tasks,
         #                                                 rule=rule)
+
+    def _constraints_chunking2(self):
+        """
+        FIXME Hacky version
+        :return:
+        """
+        chunk = np.array([0, 0, 1, 1, 0, 0])
+
+        offset = 2
+        clen = self.num_timeslots - chunk.size + 1 + offset * 2
+        self.model.c2timeslots = RangeSet(1, clen)
+        L0, b0 = util.linop_from_1d_filter(chunk, self.num_timeslots,
+                                           offset=offset)
+        L1, b1 = util.linop_from_1d_filter(1-chunk, self.num_timeslots,
+                                           offset=offset)
+        self.model.cL20 = Param(self.model.c2timeslots * self.model.timeslots,
+                                initialize=fill_from_2d_array(L0))
+        self.model.cL21 = Param(self.model.c2timeslots * self.model.timeslots,
+                                initialize=fill_from_2d_array(L1))
+
+        self.model.C2 = Var(self.model.c2timeslots * self.model.tasks,
+                            domain=pe.Integers)
+
+        def rule(model, i, j):
+            total0 = sum(
+                model.cL20[i, k] * model.A[k, j] for k in model.timeslots) + b0[
+                         i - 1]
+            total1 = sum(
+                model.cL21[i, k] * (1 - model.A[k, j]) for k in model.timeslots)
+            total = total0 + total1
+            return - 1 + 1e-2, model.C2[i, j] - total / chunk.size, 1e-2
+
+        self.model.constrain_chunking21 = Constraint(self.model.c2timeslots,
+                                                     self.model.tasks, rule=rule)
+
+    def _constraints_chunking4(self):
+        """
+        FIXME Hacky version
+        :return:
+        """
+        chunk = np.array([0, 0, 1, 1, 1, 1, 0, 0])
+
+        offset = 2
+        clen = self.num_timeslots - chunk.size + 1 + offset * 2
+        self.model.c4timeslots = RangeSet(1, clen)
+        L0, b0 = util.linop_from_1d_filter(chunk, self.num_timeslots,
+                                           offset=offset)
+        L1, b1 = util.linop_from_1d_filter(1-chunk, self.num_timeslots,
+                                           offset=offset)
+        self.model.cL40 = Param(self.model.c4timeslots * self.model.timeslots,
+                               initialize=fill_from_2d_array(L0))
+        self.model.cL41 = Param(self.model.c4timeslots * self.model.timeslots,
+                               initialize=fill_from_2d_array(L1))
+
+        self.model.C4 = Var(self.model.c4timeslots * self.model.tasks,
+                            domain=pe.Integers)
+
+        def rule(model, i, j):
+            total0 = sum(
+                model.cL40[i, k] * model.A[k, j] for k in model.timeslots) + b0[
+                         i - 1]
+            total1 = sum(
+                model.cL41[i, k] * (1 - model.A[k, j]) for k in model.timeslots)
+            total = total0 + total1
+            return - 1 + 1e-2, model.C4[i, j] - total / chunk.size, 1e-2
+
+        self.model.constrain_chunking41 = Constraint(self.model.c4timeslots,
+                                                    self.model.tasks, rule=rule)
+
+    def _constraints_chunking6(self):
+        """
+        FIXME Hacky version
+        :return:
+        """
+        chunk = np.array([0, 0, 1, 1, 1, 1, 1, 1, 0, 0])
+
+        offset = 2
+        clen = self.num_timeslots - chunk.size + 1 + offset * 2
+        self.model.c6timeslots = RangeSet(1, clen)
+        L0, b0 = util.linop_from_1d_filter(chunk, self.num_timeslots,
+                                           offset=offset)
+        L1, b1 = util.linop_from_1d_filter(1-chunk, self.num_timeslots,
+                                           offset=offset)
+        self.model.cL60 = Param(self.model.c6timeslots * self.model.timeslots,
+                                initialize=fill_from_2d_array(L0))
+        self.model.cL61 = Param(self.model.c6timeslots * self.model.timeslots,
+                                initialize=fill_from_2d_array(L1))
+
+        self.model.C6 = Var(self.model.c6timeslots * self.model.tasks,
+                            domain=pe.Integers)
+
+        def rule(model, i, j):
+            total0 = sum(
+                model.cL60[i, k] * model.A[k, j] for k in model.timeslots) + b0[
+                         i - 1]
+            total1 = sum(
+                model.cL61[i, k] * (1 - model.A[k, j]) for k in model.timeslots)
+            total = total0 + total1
+            return - 1 + 1e-2, model.C6[i, j] - total / chunk.size, 1e-2
+
+        self.model.constrain_chunking61 = Constraint(self.model.c6timeslots,
+                                                     self.model.tasks, rule=rule)
 
     def _constraints_switching_bounds(self):
         """
@@ -221,7 +358,10 @@ class CalendarSolver:
         self._constraints_nonoverlapping_tasks()
         self._constraints_task_duration()
         self._constraints_switching_bounds()
-        self._constraints_chunking()
+        self._constraints_chunking3()
+        self._constraints_chunking4()
+        self._constraints_chunking2()
+        self._constraints_chunking6()
         # objective
         self._objective_cost()
         # self._objective_switching()

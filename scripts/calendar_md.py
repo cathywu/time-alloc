@@ -1,11 +1,18 @@
 """
-Script for basic CalendarSolver functionality.
+Script for CalendarSolver functionality with integrated markdown parser.
 """
 import time
 
 import numpy as np
 
 from timealloc.calendar_solver import CalendarSolver
+from timealloc.task_parser import TaskParser
+
+
+time_allocation_fname = "scratch/time-allocation-2018-09-03.md"
+tasks_fname = "scratch/tasks-2018-09-03.md"
+
+TaskParser(time_allocation_fname, tasks_fname)
 
 
 # User defined parameters
@@ -32,13 +39,13 @@ cal = CalendarSolver(utilities, params)
 
 # Solve
 start_ts = time.time()
-cal.optimize()
+# cal.optimize()
 solve_time = time.time() - start_ts
 
 # Display the results
-cal.display()
-array = np.reshape([y for (x,y) in cal.instance.A.get_values().items()],
-                   (num_timeslots, num_tasks))
-print("Schedule (timeslot x task):")
-print(array)
-print('Solve time', solve_time)
+# cal.display()
+# array = np.reshape([y for (x,y) in cal.instance.A.get_values().items()],
+#                    (num_timeslots, num_tasks))
+# print("Schedule (timeslot x task):")
+# print(array)
+# print('Solve time', solve_time)

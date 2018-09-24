@@ -20,7 +20,7 @@ class CalendarSolver:
     def __init__(self, utilities, params):
         self.model = AbstractModel()
 
-        self.slack_cont = 5
+        self.slack_cont = 2
 
         # read parameters
         # self.num_tasks = Param(initialize=params['num_tasks'], default=5)

@@ -1,3 +1,5 @@
+import operator
+
 import numpy as np
 
 import pyomo.environ as pe
@@ -185,7 +187,10 @@ class CalendarSolver:
         """
         chunk_len = 1
         offset = 1
-        filter = np.array([-1, 1, -1])
+        filter = np.ones(chunk_len+offset*2)
+        filter[0:offset] = -1
+        filter[-offset:] = -1
+        # filter = np.array([-1, 1, -1])
         L, b = util.linop_from_1d_filter(filter, self.num_timeslots,
                                          offset=offset)
         c_len = self.num_timeslots - filter.size + 1 + offset * 2
@@ -193,23 +198,26 @@ class CalendarSolver:
         self.model.cmin1_timeslots = RangeSet(0, c_len - 1)
         self.model.C1 = Var(self.model.cmin1_timeslots * self.model.tasks,
                             domain=pe.Reals)
+        var_name = 'C1'
 
         def rule(model, i, j):
             """
             C[i, j]==1 means that the pattern is matched, anything less is okay
             """
+            C = operator.attrgetter(var_name)(model)[i, j]
             if model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            return None, model.C1[i, j], chunk_len - 1
+            return None, C, chunk_len - 1
 
         self.model.constrain_chunk10 = Constraint(self.model.cmin1_timeslots,
                                                   self.model.tasks, rule=rule)
 
         def rule(model, i, j):
+            C = operator.attrgetter(var_name)(model)[i, j]
             if model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
             total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
-            return 0, model.C1[i, j] - total, None
+            return 0, C - total, None
 
         self.model.constrain_chunk11 = Constraint(self.model.cmin1_timeslots,
                                                   self.model.tasks, rule=rule)
@@ -220,7 +228,10 @@ class CalendarSolver:
         """
         chunk_len = 2
         offset = 1
-        filter = np.array([-1, 1, 1, -1])
+        filter = np.ones(chunk_len+offset*2)
+        filter[0:offset] = -1
+        filter[-offset:] = -1
+        # filter = np.array([-1, 1, 1, -1])
         L, b = util.linop_from_1d_filter(filter, self.num_timeslots,
                                          offset=offset)
         c_len = self.num_timeslots - filter.size + 1 + offset * 2
@@ -228,43 +239,143 @@ class CalendarSolver:
         self.model.c2timeslots = RangeSet(0, c_len - 1)
         self.model.C2 = Var(self.model.c2timeslots * self.model.tasks,
                             domain=pe.Reals)
+        var_name = 'C2'
 
         def rule(model, i, j):
             """
             C[i, j]==2 means that the pattern is matched, anything less is okay
             """
+            C = operator.attrgetter(var_name)(model)[i, j]
             if model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            return None, model.C2[i, j], chunk_len - 1
+            return None, C, chunk_len - 1
 
         self.model.constrain_chunk20 = Constraint(self.model.c2timeslots,
                                                   self.model.tasks, rule=rule)
 
         def rule(model, i, j):
+            C = operator.attrgetter(var_name)(model)[i, j]
             if model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
             total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
-            return 0, model.C2[i, j] - total, None
+            return 0, C - total, None
 
         self.model.constrain_chunk21 = Constraint(self.model.c2timeslots,
                                                   self.model.tasks, rule=rule)
 
-    def _constraints_chunking6(self):
+    def _get_chunk_parameters(self, chunk_len, offset, mode):
         """
-        Ensures there are no tasks allocated beyond a maximum chunk length
+        Helper method for chunking constraints
+
+        :param chunk_len:
+        :param offset:
+        :param mode:
+        :return:
+        """
+        filter = np.ones(chunk_len+offset*2)
+        filter[0:offset] = -1
+        filter[-offset:] = -1
+        print('XXX', chunk_len, mode, filter)
+        # filter = np.array([-1, 1, 1, 1, 1, 1, 1, -1])
+        L, b = util.linop_from_1d_filter(filter, self.num_timeslots,
+                                         offset=offset)
+        c_len = self.num_timeslots - filter.size + 1 + offset * 2
+        return filter, L, c_len
+
+    @staticmethod
+    def _get_rule_chunk_upper(mode, var_name, chunk_len, filter):
+        """
+        Helper method for chunking constraints
+
+        :param mode:
+        :param var_name:
+        :param chunk_len:
+        :param filter:
+        :return:
+        """
+
+        def rule(model, i, j):
+            """
+            Upper bounds on filter match
+            """
+            C = operator.attrgetter(var_name)(model)[i, j]
+            if mode == 'min':
+                if model.task_chunk_min[j] <= chunk_len:
+                    return Constraint.Feasible
+                return None, C, chunk_len - 1
+                # return None, model.C6m[i, j], chunk_len - 1
+            elif mode == 'max':
+                if model.task_chunk_max[j] >= chunk_len:
+                    return Constraint.Feasible
+                return None, C, filter.size - 1
+
+        return rule
+
+    @staticmethod
+    def _get_rule_chunk_lower(mode, var_name, chunk_len, L):
+        """
+        Helper method for chunking constraints
+
+        :param mode:
+        :param var_name:
+        :param chunk_len:
+        :param L:
+        :return:
+        """
+
+        def rule(model, i, j):
+            """
+            Lower bounds on filter match
+            """
+            C = operator.attrgetter(var_name)(model)[i, j]
+            if mode == 'min' and model.task_chunk_min[j] <= chunk_len:
+                return Constraint.Feasible
+            elif mode == 'max' and model.task_chunk_max[j] >= chunk_len:
+                return Constraint.Feasible
+            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
+            return 0, C - total, None
+
+        return rule
+
+    def _constraints_chunking6m(self):
+        """
+        Ensures there are no tasks allocated below a minimum chunk length of 6
+        """
+        chunk_len = 6
+        mode = 'min'
+        var_name = 'C6m'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c6mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C6m = Var(self.model.c6mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk6m0 = Constraint(self.model.c6mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk6m1 = Constraint(self.model.c6mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking6M(self):
+        """
+        Ensures there are no tasks allocated beyond a maximum chunk length of 6
 
         FIXME(cathywu) this seems to slow down solving significantly.
         """
-        chunk_len = 6
+        chunk_len = 7
         offset = 0
         filter = np.ones(chunk_len)
         L, b = util.linop_from_1d_filter(filter, self.num_timeslots,
                                          offset=offset)
         c_len = self.num_timeslots - filter.size + 1 + offset * 2
 
-        self.model.c6timeslots = RangeSet(0, c_len - 1)
-        self.model.C6 = Var(self.model.c6timeslots * self.model.tasks,
-                            domain=pe.Reals)
+        self.model.c6Mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C6M = Var(self.model.c6Mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
 
         def rule(model, i, j):
             """
@@ -272,18 +383,18 @@ class CalendarSolver:
             """
             if model.task_chunk_max[j] >= chunk_len:
                 return Constraint.Feasible
-            return None, model.C6[i, j], filter.size - 1
+            return None, model.C6M[i, j], filter.size - 1
 
-        self.model.constrain_chunk60 = Constraint(self.model.c6timeslots,
-            self.model.tasks, rule=rule)
+        self.model.constrain_chunk6M0 = Constraint(self.model.c6Mtimeslots,
+                                                  self.model.tasks, rule=rule)
 
         def rule(model, i, j):
             if model.task_chunk_max[j] >= chunk_len:
                 return Constraint.Feasible
             total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
-            return 0, model.C6[i, j] - total, None
+            return 0, model.C6M[i, j] - total, None
 
-        self.model.constrain_chunk61 = Constraint(self.model.c6timeslots,
+        self.model.constrain_chunk6M1 = Constraint(self.model.c6Mtimeslots,
                                                   self.model.tasks, rule=rule)
 
     def _constraints_switching_bounds(self):
@@ -341,7 +452,8 @@ class CalendarSolver:
         self._constraints_chunking1()
         self._constraints_chunking2()
         self._constraints_task_contiguity()  # FIXME(cathywu) some slowdown
-        self._constraints_chunking6()  # FIXME(cathywu) dramatic slowdown
+        # self._constraints_chunking6M()  # FIXME(cathywu) dramatic slowdown
+        self._constraints_chunking6m()
         # objective
         self._objective_cost()
         # self._objective_switching()

@@ -6,12 +6,15 @@ from timealloc.calendar_solver import CalendarSolver
 # User defined parameters
 num_tasks = 5
 num_timeslots = 30
+task_duration = 6*np.ones(num_tasks)
 
 utilities = np.ones((num_tasks, num_timeslots)).T
 utilities[0, 0] = 0  # forces entry (0,0) to be unassigned
-task_chunk_min = 2*np.ones(num_tasks)
-task_chunk_max = 3*np.ones(num_tasks)
-task_duration = 6*np.ones(num_tasks)
+task_chunk_min = 3*np.ones(num_tasks)
+task_chunk_min[0] = 1
+task_chunk_min[-1] = 2
+task_chunk_min[3] = 3
+task_chunk_max = 5*np.ones(num_tasks)
 
 # Prepare the IP
 params = {

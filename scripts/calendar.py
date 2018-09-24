@@ -10,10 +10,8 @@ task_duration = 6*np.ones(num_tasks)
 
 utilities = np.ones((num_tasks, num_timeslots)).T
 utilities[0, 0] = 0  # forces entry (0,0) to be unassigned
-task_chunk_min = 3*np.ones(num_tasks)
+task_chunk_min = 2*np.ones(num_tasks)
 task_chunk_min[0] = 1
-task_chunk_min[3] = 6
-task_chunk_min[4] = 6
 task_chunk_max = 5*np.ones(num_tasks)
 task_chunk_max[3] = 6
 

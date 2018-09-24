@@ -93,8 +93,8 @@ class CalendarSolver:
 
         def obj_expression(model):
             return -(summation(model.utilities, model.A) + summation(
-                model.CTu)/self.slack_cont + summation(
-                model.CTl)/self.slack_cont)
+                model.CTu) / self.slack_cont + summation(
+                model.CTl) / self.slack_cont)
             # return -(summation(model.utilities, model.A))
 
         # self.model.exp_cost = Expression(rule=obj_expression)
@@ -187,7 +187,7 @@ class CalendarSolver:
         """
         chunk_len = 1
         offset = 1
-        filter = np.ones(chunk_len+offset*2)
+        filter = np.ones(chunk_len + offset * 2)
         filter[0:offset] = -1
         filter[-offset:] = -1
         # filter = np.array([-1, 1, -1])
@@ -228,7 +228,7 @@ class CalendarSolver:
         """
         chunk_len = 2
         offset = 1
-        filter = np.ones(chunk_len+offset*2)
+        filter = np.ones(chunk_len + offset * 2)
         filter[0:offset] = -1
         filter[-offset:] = -1
         # filter = np.array([-1, 1, 1, -1])
@@ -272,7 +272,7 @@ class CalendarSolver:
         :param mode:
         :return:
         """
-        filter = np.ones(chunk_len+offset*2)
+        filter = np.ones(chunk_len + offset * 2)
         if offset > 0:
             filter[0:offset] = -1
             filter[-offset:] = -1
@@ -309,7 +309,7 @@ class CalendarSolver:
                 # return None, model.C6m[i, j], chunk_len - 1
             elif mode == 'max':
                 # For max mode, only need to check once (hence equality)
-                if model.task_chunk_max[j]+1 == chunk_len:
+                if model.task_chunk_max[j] + 1 == chunk_len:
                     return None, C, filter.size - 1
                 return Constraint.Feasible
 
@@ -336,12 +336,127 @@ class CalendarSolver:
             C = operator.attrgetter(var_name)(model)[i, j]
             if mode == 'min' and model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            elif mode == 'max' and model.task_chunk_max[j]+1 != chunk_len:
+            elif mode == 'max' and model.task_chunk_max[j] + 1 != chunk_len:
                 return Constraint.Feasible
             total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
             return 0, C - total, None
 
         return rule
+
+    def _constraints_chunking1m(self):
+        """
+        Ensures there are no unwanted 1-chunk tasks
+        """
+        chunk_len = 1
+        mode = 'min'
+        var_name = 'C1m'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c1mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C1m = Var(self.model.c1mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk1m0 = Constraint(self.model.c1mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk1m1 = Constraint(self.model.c1mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking2m(self):
+        """
+        Ensures there are no unwanted 2-chunk tasks
+        """
+        chunk_len = 2
+        mode = 'min'
+        var_name = 'C2m'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c2mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C2m = Var(self.model.c2mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk2m0 = Constraint(self.model.c2mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk2m1 = Constraint(self.model.c2mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking3m(self):
+        """
+        Ensures there are no unwanted 3-chunk tasks
+        """
+        chunk_len = 3
+        mode = 'min'
+        var_name = 'C3m'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c3mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C3m = Var(self.model.c3mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk3m0 = Constraint(self.model.c3mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk3m1 = Constraint(self.model.c3mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking4m(self):
+        """
+        Ensures there are no unwanted 4-chunk tasks
+        """
+        chunk_len = 4
+        mode = 'min'
+        var_name = 'C4m'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c4mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C4m = Var(self.model.c4mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk4m0 = Constraint(self.model.c4mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk4m1 = Constraint(self.model.c4mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking5m(self):
+        """
+        Ensures there are no unwanted 5-chunk tasks
+        """
+        chunk_len = 5
+        mode = 'min'
+        var_name = 'C5m'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c5mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C5m = Var(self.model.c5mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk5m0 = Constraint(self.model.c5mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk5m1 = Constraint(self.model.c5mtimeslots,
+                                                   self.model.tasks, rule=rule)
 
     def _constraints_chunking6m(self):
         """
@@ -364,6 +479,56 @@ class CalendarSolver:
 
         rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
         self.model.constrain_chunk6m1 = Constraint(self.model.c6mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking4M(self):
+        """
+        Ensures there are no unwanted 6+ chunk tasks
+
+        FIXME(cathywu) this seems to slow down solving significantly.
+        """
+        chunk_len = 4
+        mode = 'max'
+        var_name = 'C4M'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c4Mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C4M = Var(self.model.c4Mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk4M0 = Constraint(self.model.c4Mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk4M1 = Constraint(self.model.c4Mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking5M(self):
+        """
+        Ensures there are no unwanted 6+ chunk tasks
+
+        FIXME(cathywu) this seems to slow down solving significantly.
+        """
+        chunk_len = 5
+        mode = 'max'
+        var_name = 'C5M'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c5Mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C5M = Var(self.model.c5Mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk5M0 = Constraint(self.model.c5Mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk5M1 = Constraint(self.model.c5Mtimeslots,
                                                    self.model.tasks, rule=rule)
 
     def _constraints_chunking6M(self):
@@ -389,6 +554,56 @@ class CalendarSolver:
 
         rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
         self.model.constrain_chunk6M1 = Constraint(self.model.c6Mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking7M(self):
+        """
+        Ensures there are no unwanted 6+ chunk tasks
+
+        FIXME(cathywu) this seems to slow down solving significantly.
+        """
+        chunk_len = 7
+        mode = 'max'
+        var_name = 'C7M'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c7Mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C7M = Var(self.model.c7Mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk7M0 = Constraint(self.model.c7Mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk7M1 = Constraint(self.model.c7Mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+    def _constraints_chunking8M(self):
+        """
+        Ensures there are no unwanted 8+ chunk tasks
+
+        FIXME(cathywu) this seems to slow down solving significantly.
+        """
+        chunk_len = 8
+        mode = 'max'
+        var_name = 'C8M'
+        offset = 1 if mode == 'min' else 0
+
+        filter, L, c_len = self._get_chunk_parameters(chunk_len, offset, mode)
+
+        self.model.c8Mtimeslots = RangeSet(0, c_len - 1)
+        self.model.C8M = Var(self.model.c8Mtimeslots * self.model.tasks,
+                             domain=pe.Reals)
+
+        rule = self._get_rule_chunk_upper(mode, var_name, chunk_len, filter)
+        self.model.constrain_chunk8M0 = Constraint(self.model.c8Mtimeslots,
+                                                   self.model.tasks, rule=rule)
+
+        rule = self._get_rule_chunk_lower(mode, var_name, chunk_len, L)
+        self.model.constrain_chunk8M1 = Constraint(self.model.c8Mtimeslots,
                                                    self.model.tasks, rule=rule)
 
     def _constraints_switching_bounds(self):
@@ -443,11 +658,22 @@ class CalendarSolver:
         self._constraints_nonoverlapping_tasks()
         self._constraints_task_duration()
         # self._constraints_switching_bounds()
-        self._constraints_chunking1()
-        self._constraints_chunking2()
         self._constraints_task_contiguity()  # FIXME(cathywu) some slowdown
-        self._constraints_chunking6M()  # FIXME(cathywu) dramatic slowdown
+
+        self._constraints_chunking1m()
+        self._constraints_chunking2m()
+        self._constraints_chunking3m()
+        self._constraints_chunking4m()
+        self._constraints_chunking5m()
         self._constraints_chunking6m()
+
+        # FIXME(cathywu) dramatic slowdown
+        self._constraints_chunking4M()
+        self._constraints_chunking5M()
+        self._constraints_chunking6M()
+        self._constraints_chunking7M()
+        self._constraints_chunking8M()
+
         # objective
         self._objective_cost()
         # self._objective_switching()

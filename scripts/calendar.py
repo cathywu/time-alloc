@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 
 from timealloc.calendar_solver import CalendarSolver
@@ -25,11 +27,15 @@ params = {
 }
 cal = CalendarSolver(utilities, params)
 
-# Solve and display the results
+# Solve
+start_ts = time.time()
 cal.optimize()
-cal.display()
+solve_time = time.time() - start_ts
 
+# Display the results
+cal.display()
 array = np.reshape([y for (x,y) in cal.instance.A.get_values().items()],
                    (num_timeslots, num_tasks))
 print("Schedule (timeslot x task):")
 print(array)
+print('Solve time', solve_time)

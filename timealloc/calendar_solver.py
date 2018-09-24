@@ -245,7 +245,7 @@ class CalendarSolver:
             return 0, model.C2[i, j] - total, None
 
         self.model.constrain_chunk21 = Constraint(self.model.c2timeslots,
-                                                    self.model.tasks, rule=rule)
+                                                  self.model.tasks, rule=rule)
 
     def _constraints_chunking6(self):
         """
@@ -260,7 +260,7 @@ class CalendarSolver:
                                          offset=offset)
         c_len = self.num_timeslots - filter.size + 1 + offset * 2
 
-        self.model.c6timeslots = RangeSet(0, c_len-1)
+        self.model.c6timeslots = RangeSet(0, c_len - 1)
         self.model.C6 = Var(self.model.c6timeslots * self.model.tasks,
                             domain=pe.Reals)
 

@@ -17,8 +17,10 @@ def fill_from_2d_array(array):
     :param array: 2D numpy array
     :return: initialization function
     """
+
     def fn(model, i, j):
         return array[i, j]
+
     return fn
 
 
@@ -31,8 +33,10 @@ def fill_from_array(array):
     :param array: 1D numpy array
     :return: initialization function
     """
+
     def fn(model, i):
         return array[i]
+
     return fn
 
 

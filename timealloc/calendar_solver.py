@@ -33,10 +33,6 @@ class CalendarSolver:
         self.model.utilities = Param(self.model.timeslots * self.model.tasks,
                                      initialize=fill_from_2d_array(utilities))
 
-        offdiag = np.zeros((self.num_timeslots, self.num_timeslots))
-        offdiag[1:self.num_timeslots, 0:self.num_timeslots - 1] = -1
-        self.model.offdiag = Param(self.model.timeslots * self.model.timeslots,
-                                   initialize=fill_from_2d_array(offdiag))
         self.model.task_duration = Param(self.model.tasks,
                                          initialize=fill_from_array(
                                              params['task_duration']))

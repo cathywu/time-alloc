@@ -24,8 +24,8 @@ class CalendarSolver:
         #                            default=10)
         self.num_tasks = params['num_tasks']
         self.num_timeslots = params['num_timeslots']
-        self.model.tasks = RangeSet(0, self.num_tasks-1)
-        self.model.timeslots = RangeSet(0, self.num_timeslots-1)
+        self.model.tasks = RangeSet(0, self.num_tasks - 1)
+        self.model.timeslots = RangeSet(0, self.num_timeslots - 1)
         self.model.dtimeslots = RangeSet(0, self.num_timeslots - 2)
 
         self.model.utilities = Param(self.model.timeslots * self.model.tasks,
@@ -168,7 +168,7 @@ class CalendarSolver:
             """
             total = sum(
                 model.cTl[i, k] * model.A[k, j] for k in model.timeslots) / (
-                i+1)
+                        i + 1)
             return -1 + 1e-2, model.CTl[i, j] - total, 1e-2 + slack
 
         self.model.constrain_contiguity_l = Constraint(self.model.timeslots,
@@ -186,7 +186,7 @@ class CalendarSolver:
                                          offset=offset)
         c_len = self.num_timeslots - filter.size + 1 + offset * 2
 
-        self.model.cmin1_timeslots = RangeSet(0, c_len-1)
+        self.model.cmin1_timeslots = RangeSet(0, c_len - 1)
         self.model.C1 = Var(self.model.cmin1_timeslots * self.model.tasks,
                             domain=pe.Reals)
 
@@ -196,7 +196,7 @@ class CalendarSolver:
             """
             if model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            return None, model.C1[i, j], chunk_len-1
+            return None, model.C1[i, j], chunk_len - 1
 
         self.model.constrain_chunk10 = Constraint(self.model.cmin1_timeslots,
                                                   self.model.tasks, rule=rule)
@@ -204,8 +204,7 @@ class CalendarSolver:
         def rule(model, i, j):
             if model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            total = sum(
-                L[i, k] * model.A[k, j] for k in model.timeslots)
+            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
             return 0, model.C1[i, j] - total, None
 
         self.model.constrain_chunk11 = Constraint(self.model.cmin1_timeslots,
@@ -222,7 +221,7 @@ class CalendarSolver:
                                          offset=offset)
         c_len = self.num_timeslots - filter.size + 1 + offset * 2
 
-        self.model.c2timeslots = RangeSet(0, c_len-1)
+        self.model.c2timeslots = RangeSet(0, c_len - 1)
         self.model.C2 = Var(self.model.c2timeslots * self.model.tasks,
                             domain=pe.Reals)
 
@@ -232,7 +231,7 @@ class CalendarSolver:
             """
             if model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            return None, model.C2[i, j], chunk_len-1
+            return None, model.C2[i, j], chunk_len - 1
 
         self.model.constrain_chunk20 = Constraint(self.model.c2timeslots,
                                                   self.model.tasks, rule=rule)
@@ -240,8 +239,7 @@ class CalendarSolver:
         def rule(model, i, j):
             if model.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            total = sum(
-                L[i, k] * model.A[k, j] for k in model.timeslots)
+            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
             return 0, model.C2[i, j] - total, None
 
         self.model.constrain_chunk21 = Constraint(self.model.c2timeslots,
@@ -272,19 +270,17 @@ class CalendarSolver:
                 return Constraint.Feasible
             return None, model.C6[i, j], filter.size - 1
 
-        self.model.constrain_chunk60 = Constraint(
-            self.model.c6timeslots, self.model.tasks, rule=rule)
+        self.model.constrain_chunk60 = Constraint(self.model.c6timeslots,
+            self.model.tasks, rule=rule)
 
         def rule(model, i, j):
             if model.task_chunk_max[j] >= chunk_len:
                 return Constraint.Feasible
-            total = sum(
-                L[i, k] * model.A[k, j] for k in model.timeslots)
+            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
             return 0, model.C6[i, j] - total, None
 
         self.model.constrain_chunk61 = Constraint(self.model.c6timeslots,
-                                                       self.model.tasks,
-                                                       rule=rule)
+                                                  self.model.tasks, rule=rule)
 
     def _constraints_switching_bounds(self):
         """

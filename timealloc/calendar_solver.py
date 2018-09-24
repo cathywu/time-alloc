@@ -18,6 +18,8 @@ class CalendarSolver:
     def __init__(self, utilities, params):
         self.model = AbstractModel()
 
+        self.slack_cont = 1
+
         # read parameters
         # self.num_tasks = Param(initialize=params['num_tasks'], default=5)
         # self.num_timeslots = Param(initialize=params['num_timeslots'],
@@ -59,10 +61,17 @@ class CalendarSolver:
         self.opt = SolverFactory('cbc')
 
     def _variables(self):
+        """
+        Primary variables are defined here. Intermediate variables may be
+        defined directly in constraints.
+
+        Convention: variables are capitalized, i.e. model.A, and not model.a
+        """
         # allocation A
         self.model.A = Var(self.model.timeslots * self.model.tasks,
                            domain=pe.Boolean)
         # delta D
+        # TODO(cathywu) consider whether this / switching constraints are needed
         self.model.D = Var(self.model.dtimeslots * self.model.tasks,
                            domain=pe.Integers)
 
@@ -86,7 +95,8 @@ class CalendarSolver:
 
         def obj_expression(model):
             return -(summation(model.utilities, model.A) + summation(
-                model.CTu) + summation(model.CTl))
+                model.CTu)/self.slack_cont + summation(
+                model.CTl)/self.slack_cont)
             # return -(summation(model.utilities, model.A))
 
         # self.model.exp_cost = Expression(rule=obj_expression)
@@ -133,8 +143,6 @@ class CalendarSolver:
         Encourage the chunks of a tasks to be scheduled close to one another,
         i.e. reward shorter "elapsed" times
         """
-        slack = 2
-
         triu = np.triu(np.ones(self.num_timeslots))
         tril = np.tril(np.ones(self.num_timeslots))
 
@@ -152,10 +160,10 @@ class CalendarSolver:
             This rule is used to encourage early completion (in terms of
             allocation) of a task.
             """
-            total = sum(
-                model.cTu[i, k] * model.A[k, j] for k in model.timeslots) / (
-                        self.num_timeslots - i)
-            return -1 + 1e-2, model.CTu[i, j] - total, 1e-2 + slack
+            den = self.num_timeslots - i
+            ind = model.timeslots
+            total = sum(model.cTu[i, k] * model.A[k, j] for k in ind) / den
+            return -1 + 1e-2, model.CTu[i, j] - total, 1e-2 + self.slack_cont
 
         self.model.constrain_contiguity_u = Constraint(self.model.timeslots,
                                                        self.model.tasks,
@@ -166,10 +174,10 @@ class CalendarSolver:
             This rule is used to encourage late start (in terms of
             allocation) of a task.
             """
-            total = sum(
-                model.cTl[i, k] * model.A[k, j] for k in model.timeslots) / (
-                        i + 1)
-            return -1 + 1e-2, model.CTl[i, j] - total, 1e-2 + slack
+            den = i + 1
+            ind = model.timeslots
+            total = sum(model.cTl[i, k] * model.A[k, j] for k in ind) / den
+            return -1 + 1e-2, model.CTl[i, j] - total, 1e-2 + self.slack_cont
 
         self.model.constrain_contiguity_l = Constraint(self.model.timeslots,
                                                        self.model.tasks,
@@ -253,7 +261,7 @@ class CalendarSolver:
         """
         chunk_len = 6
         offset = 0
-        filter = np.array([1, 1, 1, 1, 1, 1])
+        filter = np.ones(chunk_len)
         L, b = util.linop_from_1d_filter(filter, self.num_timeslots,
                                          offset=offset)
         c_len = self.num_timeslots - filter.size + 1 + offset * 2

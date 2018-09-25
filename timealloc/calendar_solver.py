@@ -782,8 +782,12 @@ class CalendarSolver:
                 curr_task = name
                 task_display.append(name)
         source2 = ColumnDataSource(
-            data=dict(x=left, y=top, task=[k[:18] for k in task_display],
-                # abbreviated version of task))
+            data=dict(
+                x=left,
+                y=top,
+                # abbreviated version of task
+                task=[k[:18] for k in task_display],
+            ))
 
         # annotate rectangles with task name
         # [Bokeh] Text properties:

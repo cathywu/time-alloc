@@ -276,7 +276,7 @@ class CalendarSolver:
         if offset > 0:
             filter[0:offset] = -1
             filter[-offset:] = -1
-        print('XXX Chunk filter:', chunk_len, mode, filter)
+        # print('XXX Chunk filter:', chunk_len, mode, filter)
         # filter = np.array([-1, 1, 1, 1, 1, 1, 1, -1])
         L, b = util.linop_from_1d_filter(filter, self.num_timeslots,
                                          offset=offset)

@@ -66,8 +66,9 @@ class TaskParser:
                         if not isinstance(level3, NavigableString):
                             # print('Metadata:', level3.next)
                             label, metadata = level3.next.split(": ", 1)
+                            label = label.lower()
                             metadatum = metadata.split("; ")
-                            if label == "When":
+                            if label == "when":
                                 self.time_alloc[category][label] = {}
                                 self.time_alloc[category][label][
                                     'constraints'] = []
@@ -148,7 +149,8 @@ class TaskParser:
                     if not isinstance(level3, NavigableString):
                         # print('Metadata:', level3.next)
                         label, metadata = level3.next.split(": ", 1)
-                        if label == "When":
+                        label = label.lower()
+                        if label == "when":
                             metadatum = metadata.split("; ")
                             self.tasks[task][label] = {}
                             self.tasks[task][label]['constraints'] = []

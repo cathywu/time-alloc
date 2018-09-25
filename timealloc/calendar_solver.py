@@ -41,6 +41,7 @@ class CalendarSolver:
         self.task_duration = params['task_duration']
         self.task_chunk_min = params['task_chunk_min']
         self.task_chunk_max = params['task_chunk_max']
+        self.valid = params['task_valid']
 
         # Index sets for iteration
         self.model.tasks = RangeSet(0, self.num_tasks - 1)
@@ -105,10 +106,10 @@ class CalendarSolver:
         """ Objective function to minimize """
 
         def obj_expression(model):
-            return -(summation(model.utilities, model.A) + summation(
-                model.CTu) / self.slack_cont + summation(
-                model.CTl) / self.slack_cont)
-            # return -(summation(model.utilities, model.A))
+            # return -(summation(model.utilities, model.A) + summation(
+            #     model.CTu) / self.slack_cont + summation(
+            #     model.CTl) / self.slack_cont)
+            return -(summation(model.utilities, model.A))
 
         # self.model.exp_cost = Expression(rule=obj_expression)
         # self.model.obj_cost = Objective(rule=self.model.exp_cost)
@@ -683,7 +684,7 @@ class CalendarSolver:
         self._constraints_nonoverlapping_tasks()
         self._constraints_task_duration()
         # self._constraints_switching_bounds()
-        self._constraints_task_contiguity()  # FIXME(cathywu) some slowdown
+        # self._constraints_task_contiguity()  # FIXME(cathywu) some slowdown
 
         self._constraints_chunking1m()
         self._constraints_chunking2m()

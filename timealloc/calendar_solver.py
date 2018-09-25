@@ -727,9 +727,9 @@ class CalendarSolver:
 
         x, y = array.nonzero()
         top = (x % (24 * tutil.SLOTS_PER_HOUR)) / tutil.SLOTS_PER_HOUR
-        bottom = top-(0.95 / tutil.SLOTS_PER_HOUR)
+        bottom = top - (0.95 / tutil.SLOTS_PER_HOUR)
         left = np.floor(x / (24 * tutil.SLOTS_PER_HOUR))
-        right = left+0.95
+        right = left + 0.95
         chunk_min = [self.task_chunk_min[k] for k in y]
         chunk_max = [self.task_chunk_max[k] for k in y]
         duration = [self.task_duration[k] for k in y]
@@ -770,8 +770,8 @@ class CalendarSolver:
         p.xaxis[0].axis_label = 'Weekday (Sun-Fri)'
         p.yaxis[0].axis_label = 'Hour (12AM-12AM)'
 
-        p.quad(top='top', bottom='bottom', left='left',
-            right='right', color='colors', source=source)
+        p.quad(top='top', bottom='bottom', left='left', right='right',
+               color='colors', source=source)
 
         task_display = []
         curr_task = ""
@@ -781,11 +781,9 @@ class CalendarSolver:
             else:
                 curr_task = name
                 task_display.append(name)
-        source2 = ColumnDataSource(data=dict(
-            x=left,
-            y=top,
-            task=[k[:18] for k in task_display],  # abbreviated version of task
-        ))
+        source2 = ColumnDataSource(
+            data=dict(x=left, y=top, task=[k[:18] for k in task_display],
+                # abbreviated version of task))
 
         # annotate rectangles with task name
         # [Bokeh] Text properties:

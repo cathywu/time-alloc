@@ -34,7 +34,10 @@ class CalendarSolver:
         self.num_tasks = params['num_tasks']
         self.num_timeslots = params['num_timeslots']
         self.valid = params['task_valid']
-        self.task_names = params['task_names']
+        if 'task_names' in params:
+            self.task_names = params['task_names']
+        else:
+            self.task_names = ["" for i in range(self.num_tasks)]
         self.task_duration = params['task_duration']
         self.task_chunk_min = params['task_chunk_min']
         self.task_chunk_max = params['task_chunk_max']
@@ -780,14 +783,14 @@ class CalendarSolver:
         source2 = ColumnDataSource(data=dict(
             x=left,
             y=top,
-            task=[k[:17] for k in task_display],  # abbreviated version of task
+            task=[k[:18] for k in task_display],  # abbreviated version of task
         ))
 
         # annotate rectangles with task name
         # [Bokeh] Text properties:
         # https://bokeh.pydata.org/en/latest/docs/user_guide/styling.html#text-properties
-        labels = LabelSet(x='x', y='y', text='task', level='glyph', x_offset=4,
-                          y_offset=-2, source=source2, text_font_size='6pt',
+        labels = LabelSet(x='x', y='y', text='task', level='glyph', x_offset=3,
+                          y_offset=-3, source=source2, text_font_size='7pt',
                           render_mode='canvas')
 
         p.add_layout(labels)

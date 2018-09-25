@@ -10,7 +10,7 @@ from timealloc.task_parser import TaskParser
 import timealloc.util_time as tutil
 
 
-DEFAULT_CHUNK_MIN = 0  # in IP slot units
+DEFAULT_CHUNK_MIN = 2  # in IP slot units
 DEFAULT_CHUNK_MAX = 20  # in IP slot units
 
 time_allocation_fname = "scratch/time-allocation-2018-09-03.md"

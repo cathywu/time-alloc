@@ -16,6 +16,7 @@ import timealloc.util as util
 import timealloc.util_time as tutil
 
 EPS = 1e-2  # epsilon
+TIMELIMIT = 3600  # 1e3, 2e2
 
 
 class CalendarSolver:
@@ -240,8 +241,8 @@ class CalendarSolver:
                              domain=pe.Integers)
         self.model.CTl = Var(self.model.timeslots * self.model.tasks,
                              domain=pe.Integers)
-        self.model.CTu_total = Var(domain=pe.Integers)
-        self.model.CTl_total = Var(domain=pe.Integers)
+        self.model.CTu_total = Var(domain=pe.Reals)
+        self.model.CTl_total = Var(domain=pe.Reals)
 
         def rule(model, i, j):
             """
@@ -284,13 +285,17 @@ class CalendarSolver:
                                                        rule=rule)
 
         def rule(model):
-            total = summation(model.CTu) / self.slack_cont
+            den = self.num_tasks * self.num_timeslots * (self.slack_cont + 1)
+            num = 0.25
+            total = summation(model.CTu) / den * num
             return model.CTu_total == total
 
         self.model.constrain_contiguity_ut = Constraint(rule=rule)
 
         def rule(model):
-            total = summation(model.CTl) / self.slack_cont
+            den = self.num_tasks * self.num_timeslots * (self.slack_cont + 1)
+            num = 0.25
+            total = summation(model.CTl) / den * num
             return model.CTl_total == total
 
         self.model.constrain_contiguity_lt = Constraint(rule=rule)
@@ -797,8 +802,9 @@ class CalendarSolver:
         # self.instance = self.model.create_instance("data/calendar.dat")
         self.instance = self.model.create_instance()
         # See pyomo/opt/base/solvers.py:_presolve() for options
-        self._results = self.opt.solve(self.instance, tee=True,
-                                       keepfiles=True, report_timing=True)
+        self._results = self.opt.solve(self.instance, timelimit=TIMELIMIT,
+                                       tee=True, keepfiles=True,
+                                       report_timing=True)
         # self._results = self.opt.solve(self.instance, timelimit=2e2,
         # tee=True, keepfiles=True)
         self._optimized = True

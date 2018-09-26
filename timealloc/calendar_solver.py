@@ -269,7 +269,7 @@ class CalendarSolver:
             Maximizing sum_i CTu[i,j] encourages early task completion.
             Maximizing sum_i CTu[i,j]+CTl[i,j] encourages contiguous scheduling.
             """
-            den = self.num_timeslots - i
+            den = sum(triu[i, :])
             ind = model.timeslots
             total = sum(triu[i, k] * (1-model.A[k, j]) for k in ind) / den
             return -1 + EPS, model.CTu[i, j] - total, EPS + self.slack_cont
@@ -289,7 +289,7 @@ class CalendarSolver:
             Maximizing sum_i CTl[i,j] encourages late starting.
             Maximizing sum_i CTu[i,j]+CTl[i,j] encourages contiguous scheduling.
             """
-            den = i + 1
+            den = sum(tril[i, :])
             ind = model.timeslots
             total = sum(tril[i, k] * (1-model.A[k, j]) for k in ind) / den
             return -1 + EPS, model.CTl[i, j] - total, EPS + self.slack_cont

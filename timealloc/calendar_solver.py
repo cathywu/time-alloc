@@ -828,29 +828,18 @@ class CalendarSolver:
         task = [self.task_names[k] for k in y]
 
         colors = [COLORS[i] for i in y]
-        source = ColumnDataSource(data=dict(
-            top=top,
-            bottom=bottom,
-            left=left,
-            right=right,
-            chunk_min=chunk_min,
-            chunk_max=chunk_max,
-            duration=duration,
-            task_id=y,
-            task=task,
-            colors=colors,
-        ))
+        source = ColumnDataSource(
+            data=dict(top=top, bottom=bottom, left=left, right=right,
+                chunk_min=chunk_min, chunk_max=chunk_max, duration=duration,
+                task_id=y, task=task, colors=colors, ))
 
-        TOOLTIPS = [
-            ("task", "@task"),
-            ("desc", "@task_id"),
+        TOOLTIPS = [("task", "@task"), ("desc", "@task_id"),
             # ("(x,y)", "($x, $y)"),
             ("duration", "@duration"),
             ("chunk_range", "(@chunk_min, @chunk_max)"),
             ("(t,l)", "(@top, @left)"),
             # ("fill color", "$color[hex, swatch]:fill_color"),
-            ("index", "$index"),
-        ]
+            ("index", "$index"), ]
 
         # [Bokeh] inverted axis range example:
         # https://groups.google.com/a/continuum.io/forum/#!topic/bokeh/CJAvppgQmKo
@@ -868,9 +857,6 @@ class CalendarSolver:
         p.yaxis[0].ticker.desired_num_ticks = 24
         p.yaxis[0].ticker.num_minor_ticks = 4
         p.xaxis[0].ticker.num_minor_ticks = 0
-        # ticker = SingleIntervalTicker(interval=1, num_minor_ticks=4)
-        # yaxis = LinearAxis(ticker=ticker, axis_label='Hour (12AM-12AM)')
-        # p.add_layout(yaxis, 'left')
 
         # Display task allocation as colored rectangles
         p.quad(top='top', bottom='bottom', left='left', right='right',
@@ -888,12 +874,8 @@ class CalendarSolver:
                 curr_task = name
                 task_display.append(name)
         source2 = ColumnDataSource(
-            data=dict(
-                x=left,
-                y=top,
-                # abbreviated version of task
-                task=[k[:18] for k in task_display],
-            ))
+            data=dict(x=left, y=top, # abbreviated version of task
+                task=[k[:18] for k in task_display], ))
 
         # Annotate rectangles with task name
         # [Bokeh] Text properties:

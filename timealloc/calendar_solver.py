@@ -248,7 +248,7 @@ class CalendarSolver:
         incr = CONT_STRIDE * tutil.SLOTS_PER_HOUR  # 1 would give original result
         triu = util.triu(self.num_timeslots, incr=incr)
         tril = util.tril(self.num_timeslots, incr=incr)
-        cont_slots = self.num_timeslots/incr
+        cont_slots = self.num_timeslots/incr-1
 
         self.model.contslots = RangeSet(0, cont_slots - 1)
         self.model.CTu = Var(self.model.contslots * self.model.tasks,

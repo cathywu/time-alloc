@@ -75,7 +75,6 @@ def triu(m, incr=1):
     Returns upper triangular matrix with stride length incr
 
     Example output with m=6, incr=2
-    1 1 1 1 1 1
     0 0 1 1 1 1
     0 0 0 0 1 1
 
@@ -83,10 +82,10 @@ def triu(m, incr=1):
     :param incr: increment/offset for starting the next row
     :return: m/incr-by-m matrix
     """
-    n = int(m / incr)
+    n = int(m / incr)-1
     L = np.zeros((n, m))
     for i in range(n):
-        L[i, i * incr:] = 1
+        L[i, (i+1) * incr:] = 1
     return L
 
 
@@ -97,13 +96,12 @@ def tril(m, incr=1):
     Example output with m=6, incr=2
     1 1 0 0 0 0
     1 1 1 1 0 0
-    1 1 1 1 1 1
 
     :param m: range space dimension
     :param incr: increment/offset for ending the next row
     :return: m/incr-by-m matrix
     """
-    n = int(m / incr)
+    n = int(m / incr)-1
     L = np.zeros((n, m))
     for i in range(n):
         L[i, :(i + 1) * incr] = 1

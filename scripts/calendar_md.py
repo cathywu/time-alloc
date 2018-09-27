@@ -30,8 +30,19 @@ task_chunk_min = DEFAULT_CHUNK_MIN * np.ones(num_tasks)
 #  off by default
 task_chunk_max = DEFAULT_CHUNK_MAX * np.ones(num_tasks)
 
+# FIXME(cathywu) this is temporary for initially supporting categories
+num_categories = 1
+category_names = ["work"]
+
+# num_tasks-by-num_categories matrix
+task_category = np.zeros((num_tasks, num_categories))
+# FIXME(cathywu) this is temporary for initially supporting categories
+task_category[:, 0] = 1
+category_min = np.array([33,])
+category_max = np.array([300,])
+
 # FIXME(cathywu) have non-uniform utilities
-utilities = np.ones((num_tasks, num_timeslots)).T
+utilities = np.ones((num_timeslots, num_tasks, num_categories))
 
 # Working hours
 # TODO(cathywu) remove this for full scheduling version
@@ -112,8 +123,13 @@ for i in range(num_tasks):
 
 # Prepare the IP
 params = {
-    'num_tasks': num_tasks,
     'num_timeslots': num_timeslots,
+    'num_categories': num_categories,
+    'category_names': category_names,
+    'category_min': category_min,
+    'category_max': category_max,
+    'task_category': task_category,
+    'num_tasks': num_tasks,  # for category "work", privileged category 0
     'task_duration': task_duration,
     'task_valid': overall_mask,
     'task_chunk_min': task_chunk_min,

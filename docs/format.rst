@@ -2,12 +2,14 @@ Format
 ------
 
 The basic format is:
+
 ```
 - [Task name]
     - [Attribute]: [Value]
 ```
 
 Example:
+
 ```
 - Watch: Giraffes vs lions video [10 min]
     - When: after 6pm
@@ -19,6 +21,7 @@ Example:
 ```
 
 Valid attributes are:
+
 - Before: date/time
 - After: date/time
 - On: date/time
@@ -27,6 +30,7 @@ Valid attributes are:
 - Chunks: hours or hours range
 
 Not yet supported
+
 - Display name: name (permit alternate/short display name for Bokeh
 visualization)
 - Prefer: date/time clause

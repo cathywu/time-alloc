@@ -203,29 +203,30 @@ class CalendarSolver:
 
         def rule(model, i, j):
             """
-            This rule is used to encourage early completion (in terms of
-            allocation) of a task.
+            For spread-activated tasks, this rule is used to encourage
+            spreading the chunks out on multiple days.
 
             More precisely:
-            CTu[i,j] = whether task j is UNASSIGNED between slot i and the end
+            S[i,j] = whether task j is assigned on day i
 
-            Maximizing sum_i CTu[i,j] encourages early task completion.
-            Maximizing sum_i CTu[i,j]+CTl[i,j] encourages contiguous scheduling.
+            Maximizing sum_i S[i,j] encourages spreading out the task chunks
             """
             active = self.task_spread[j]
             den = sum(diag[i, :])
             ind = model.timeslots
-            total = sum(diag[i, k] * (1 - model.A[k, j]) for k in ind) / den
+            total = sum(diag[i, k] * model.A[k, j] for k in ind) / den
             total *= active
-            return -1 + EPS, model.S[i, j] - total, EPS
+            # Desired: S[i,j] = ceil(total)
+            # Desired: S[i,j] = 0 if total <= 0; otherwise, S[i,j] = 1
+            return -EPS, model.S[i, j] - total, -EPS + 1
 
         self.model.constrain_spread0 = Constraint(self.model.spreadslots,
                                                   self.model.tasks, rule=rule)
 
         def rule(model):
-            den = self.num_tasks * slots * (self.slack_cont + 1)
+            den = self.num_tasks * slots
             num = 0.25
-            total = summation(model.CTu) / den * num
+            total = summation(model.S) / den * num
             return model.S_total == total
 
         self.model.constrain_spread1 = Constraint(rule=rule)
@@ -325,6 +326,7 @@ class CalendarSolver:
             ind = model.timeslots
             total = sum(triu[i, k] * (1-model.A[k, j]) for k in ind) / den
             total *= active
+            # CTu[i,j] = floor(total)
             return -1 + EPS, model.CTu[i, j] - total, EPS + self.slack_cont
 
         self.model.constrain_contiguity_u = Constraint(self.model.contslots,
@@ -832,7 +834,7 @@ class CalendarSolver:
 
     def _construct_ip(self):
         """
-        Aggregates IP construction
+        Aggregates MIP construction
         """
         # name the problem
         self.integer_program = "CalenderSolver"

@@ -1,5 +1,5 @@
-Format
-------
+Task list format
+----------------
 
 The basic format is:
 
@@ -25,15 +25,18 @@ Valid attributes are:
 - Before: date/time
 - After: date/time
 - On: date/time
-- Deadline: date/time
 - At: date/time
 - Chunks: hours or hours range
+- Display name: name (permit alternate/short display name for Bokeh
+  visualization)
 
 Not yet supported
 
-- Display name: name (permit alternate/short display name for Bokeh
-  visualization)
+- Priority: 0-100
+- Urgency: 0-100
 - Prefer: date/time clause
 - When: date/time (TBD)
 - At: location
 - In: location
+- Deadline: date/time
+- Deadline?: date/time (uncertain deadline)

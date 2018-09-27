@@ -3,22 +3,21 @@ Format
 
 The basic format is:
 
-```
-- [Task name]
-    - [Attribute]: [Value]
-```
+::
+    - [Task name]
+        - [Attribute]: [Value]
 
 Example:
 
-```
-- Watch: Giraffes vs lions video [10 min]
-    - When: after 6pm
-- Read: Giraffes are now endangered [30 min]
-    - Before: Thursday
-- Research: How to save giraffes [3 hours]
-    - Chunks: 1-1.5
-    - Before: 3pm
-```
+::
+
+    - Watch: Giraffes vs lions video [10 min]
+        - When: after 6pm
+    - Read: Giraffes are now endangered [30 min]
+        - Before: Thursday
+    - Research: How to save giraffes [3 hours]
+        - Chunks: 1-1.5
+        - Before: 3pm
 
 Valid attributes are:
 
@@ -32,7 +31,7 @@ Valid attributes are:
 Not yet supported
 
 - Display name: name (permit alternate/short display name for Bokeh
-visualization)
+  visualization)
 - Prefer: date/time clause
 - When: date/time (TBD)
 - At: location

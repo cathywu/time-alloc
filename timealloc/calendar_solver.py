@@ -896,8 +896,8 @@ class CalendarSolver:
             (self.num_timeslots, self.num_tasks))
 
         x, y = array.nonzero()
-        top = (x % (24 * tutil.SLOTS_PER_HOUR)) / tutil.SLOTS_PER_HOUR
-        bottom = top - (0.95 / tutil.SLOTS_PER_HOUR)
+        bottom = (x % (24 * tutil.SLOTS_PER_HOUR)) / tutil.SLOTS_PER_HOUR
+        top = bottom + (0.95 / tutil.SLOTS_PER_HOUR)
         left = np.floor(x / (24 * tutil.SLOTS_PER_HOUR))
         right = left + 0.95
         chunk_min = [self.task_chunk_min[k] for k in y]

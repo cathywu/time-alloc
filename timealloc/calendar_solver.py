@@ -17,7 +17,7 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 2e2  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 3e2  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -104,9 +104,6 @@ class CalendarSolver:
         self.model.A = Var(self.model.timeslots * self.model.tasks,
                            domain=pe.Boolean)
         self.model.A_total = Var(domain=pe.Reals)
-        # category matrix C (category correctness for A[i,j,:])
-        self.model.C = Var(self.model.timeslots * self.model.tasks,
-                           domain=pe.Boolean)
         # day slots
         self.model.dayslots = RangeSet(0, 6)  # 7 days
         self.model.S = Var(self.model.dayslots * self.model.tasks,
@@ -363,73 +360,13 @@ class CalendarSolver:
 
         self.model.constrain_spread1 = Constraint(rule=rule)
 
-    def _constraints_task_contiguity_linear(self):
-        """
-        Encourage the chunks of a tasks to be scheduled close to one another,
-        i.e. reward shorter "elapsed" times
-        """
-        triu = np.triu(np.ones(self.num_timeslots))
-        tril = np.tril(np.ones(self.num_timeslots))
-
-        self.model.CTu = Var(domain=pe.Integers)
-        self.model.CTl = Var(domain=pe.Integers)
-
-        def rule(model):
-            """
-            This rule is used to encourage early completion (in terms of
-            allocation) of a task.
-
-            More precisely:
-            CTu[i,j] = whether task j is UNASSIGNED between slot i and the end
-
-            Maximizing sum_i CTu[i,j] encourages early task completion.
-            Maximizing sum_i CTu[i,j]+CTl[i,j] encourages contiguous scheduling.
-            """
-            total = 0
-            ind = model.timeslots
-            for i in model.timeslots:
-                for j in model.tasks:
-                    den = self.num_timeslots - i
-                    total += sum(triu[i, k] * (1-model.A[k, j]) for k in
-                                 ind) / den
-            # total = sum(model.cTu[i, k] * (1-model.A[k, j]) for k in ind) /
-            #  den
-            return -1 + EPS, model.CTu - total, EPS + self.slack_cont
-
-        self.model.constrain_contiguity_u = Constraint(rule=rule)
-
-        def rule(model):
-            """
-            This rule is used to encourage late start (in terms of
-            allocation) of a task.
-
-            More precisely:
-            CTl[i,j] = whether task j is UNASSIGNED between slot 0 and slot i
-
-            Maximizing sum_i CTl[i,j] encourages late starting.
-            Maximizing sum_i CTu[i,j]+CTl[i,j] encourages contiguous scheduling.
-            """
-            total = 0
-            ind = model.timeslots
-            for i in model.timeslots:
-                for j in model.tasks:
-                    den = i + 1
-                    total = sum(tril[i, k] * (1-model.A[k, j]) for k in
-                                ind) / den
-            # total = sum(model.cTl[i, k] * (1-model.A[k, j]) for k in ind) /
-            #  den
-            return -1 + EPS, model.CTl - total, EPS + self.slack_cont
-
-        self.model.constrain_contiguity_l = Constraint(rule=rule)
-
     def _constraints_task_contiguity(self):
         """
         Encourage the chunks of a tasks to be scheduled close to one another,
         i.e. reward shorter "elapsed" times
         """
-        # triu = np.triu(np.ones(self.num_timeslots))
-        # tril = np.tril(np.ones(self.num_timeslots))
-        incr = CONT_STRIDE * tutil.SLOTS_PER_HOUR  # 1 would give original result
+        # CONT_STRIDE=1 would give original implementation
+        incr = CONT_STRIDE * tutil.SLOTS_PER_HOUR
         triu = util.triu(self.num_timeslots, incr=incr)
         tril = util.tril(self.num_timeslots, incr=incr)
         cont_slots = self.num_timeslots/incr-1
@@ -651,7 +588,8 @@ class CalendarSolver:
             """
             Lower bounds on filter match
 
-            See CalendarSolver._get_rule_chunk_upper() for more details.
+            See CalendarSolver._get_rule_chunk_upper() inline comments for more
+            details.
             """
             C = operator.attrgetter(var_name)(model)[i, j]
             if mode == 'min' and self.task_chunk_min[j] <= chunk_len:
@@ -1018,14 +956,20 @@ class CalendarSolver:
         self._optimized = True
 
     def display(self):
-        self.instance.display()
+        # self.instance.display()  # Displays everything
+        self.instance.A_total.display()
+        self.instance.S_total.display()
+        self.instance.CTu_total.display()
+        self.instance.CTl_total.display()
+        self.instance.C_total.display()
 
     def visualize(self):
         """
         Visualization of calendar tasks, with hover for more details
         :return:
         """
-        COLORS = d3['Category20'][20]
+        COLORS = d3['Category20c'][20] + d3['Category20b'][20]
+        COLORS_CAT = d3['Category20'][20]
 
         array = np.reshape(
             [y for (x, y) in self.instance.A.get_values().items()],
@@ -1041,11 +985,13 @@ class CalendarSolver:
         chunk_max = [self.task_chunk_max[k] for k in tasks]
         duration = [self.task_duration[k] for k in tasks]
         task_names = [self.task_names[k] for k in tasks]
+        category_ids = [[l for l, j in enumerate(array) if j != 0] for array in
+                        [self.task_category[j, :] for j in tasks]]
         category = [" ,".join(
             [self.cat_names[l] for l, j in enumerate(array) if j != 0]) for
                     array in [self.task_category[j, :] for j in tasks]]
 
-        colors = [COLORS[i % 20] for i in tasks]
+        colors = [COLORS[i % len(COLORS)] for i in tasks]
         source = ColumnDataSource(data=dict(
             top=top,
             bottom=bottom,
@@ -1114,5 +1060,23 @@ class CalendarSolver:
                           y_offset=-1, source=source2, text_font_size='7pt',
                           render_mode='canvas')
         p.add_layout(labels)
+
+        # Display categories as a colored line on the left
+        # TODO(cathywu) currently displays only the "first" category,
+        # add support for more categories
+        xs = []
+        ys = []
+        for y0, y1, x in zip(top, bottom, left):
+            xs.append([x, x])
+            ys.append([y0, y1])
+
+        colors_cat = [COLORS_CAT[cat_ids[0] % 20] for cat_ids in category_ids]
+        source3 = ColumnDataSource(data=dict(
+            xs=xs,
+            ys=ys,
+            colors=colors_cat,
+        ))
+        p.multi_line(xs='xs', ys='ys', color='colors', line_width=4,
+                     source=source3)
 
         show(p)

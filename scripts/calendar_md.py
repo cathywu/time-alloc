@@ -15,8 +15,8 @@ MODIFIERS = ['after', 'before', 'at', 'on']
 NUMSLOTS = 24 * 7 * tutil.SLOTS_PER_HOUR
 
 # User specified input files
-time_allocation_fname = "scratch/time-allocation-2018-09-27.md"
-tasks_fname = "scratch/tasks-2018-09-27.md"
+time_allocation_fname = "scratch/time-allocation-2018-09-27b.md"
+tasks_fname = "scratch/tasks-2018-09-27b.md"
 
 tasks = TaskParser(time_allocation_fname, tasks_fname)
 
@@ -68,13 +68,12 @@ task_spread = np.zeros(num_tasks)
 # Per-category masks
 category_masks = np.ones((24 * 7 * tutil.SLOTS_PER_HOUR, num_categories))
 for k, cat in enumerate(category_names):
-    mask = np.ones(24 * 7 * tutil.SLOTS_PER_HOUR)
-    for key in tasks.time_alloc[cat]:
-        if key in MODIFIERS:
-            sub_mask = tutil.modifier_mask(tasks.time_alloc[cat][key], key,
-                                           category_min[k])
-            category_masks[:, k] = np.array(
-                np.logical_and(category_masks[:, k], sub_mask), dtype=int)
+    if "when" not in tasks.time_alloc[cat]:
+        continue
+    for clause in tasks.time_alloc[cat]["when"]:
+        sub_mask = tutil.modifier_mask(clause, category_min[k])
+        category_masks[:, k] = np.array(
+            np.logical_and(category_masks[:, k], sub_mask), dtype=int)
 
 # Working hours
 work_category = category_names.index("Work")
@@ -99,10 +98,11 @@ for i, task in enumerate(tasks.tasks.keys()):
     task_duration[i] = tutil.hour_to_ip_slot(total)
 
     for key in tasks.tasks[task]:
-        if key in MODIFIERS:
-            sub_mask = tutil.modifier_mask(tasks.tasks[task][key], key, total)
-            overall_mask[:, i] = np.array(
-                np.logical_and(overall_mask[:, i], sub_mask), dtype=int)
+        if key == "when":
+            for clause in tasks.tasks[task][key]:
+                sub_mask = tutil.modifier_mask(clause, total)
+                overall_mask[:, i] = np.array(
+                    np.logical_and(overall_mask[:, i], sub_mask), dtype=int)
         elif key == "chunks":
             chunks = tasks.tasks[task][key].split('-')
             task_chunk_min[i] = tutil.hour_to_ip_slot(float(chunks[0]))

@@ -4,14 +4,12 @@ import numpy as np
 
 from bokeh.palettes import d3
 from bokeh.plotting import figure, output_file, show
-from bokeh.models import ColumnDataSource, SingleIntervalTicker, LinearAxis, \
-    LabelSet, Range1d
+from bokeh.models import ColumnDataSource, LabelSet, Range1d
 import pyomo.environ as pe
-from pyomo.environ import AbstractModel, RangeSet, Set, Var, Objective, Param, \
-    Constraint, summation, Expression
+from pyomo.environ import AbstractModel, RangeSet, Var, Objective, Constraint, \
+    summation, Expression
 from pyomo.opt import SolverFactory
 
-from timealloc.util import fill_from_array, fill_from_2d_array
 import timealloc.util as util
 import timealloc.util_time as tutil
 
@@ -19,7 +17,7 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 2e2  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 1e3  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -990,29 +988,42 @@ class CalendarSolver:
             [y for (x, y) in self.instance.A.get_values().items()],
             (self.num_timeslots, self.num_tasks))
 
-        x, y = array.nonzero()
-        bottom = (x % (24 * tutil.SLOTS_PER_HOUR)) / tutil.SLOTS_PER_HOUR
+        times, tasks = array.nonzero()
+        bottom = (times % (24 * tutil.SLOTS_PER_HOUR)) / tutil.SLOTS_PER_HOUR
         top = bottom + (0.95 / tutil.SLOTS_PER_HOUR)
-        left = np.floor(x / (24 * tutil.SLOTS_PER_HOUR))
+        left = np.floor(times / (24 * tutil.SLOTS_PER_HOUR))
         right = left + 0.95
-        chunk_min = [self.task_chunk_min[k] for k in y]
-        chunk_max = [self.task_chunk_max[k] for k in y]
-        duration = [self.task_duration[k] for k in y]
-        task = [self.task_names[k] for k in y]
+        chunk_min = [self.task_chunk_min[k] for k in tasks]
+        chunk_max = [self.task_chunk_max[k] for k in tasks]
+        duration = [self.task_duration[k] for k in tasks]
+        task_names = [self.task_names[k] for k in tasks]
+        category = [" ,".join(
+            [self.cat_names[l] for l, j in enumerate(array) if j != 0]) for
+                    array in [self.task_category[j, :] for j in tasks]]
 
-        colors = [COLORS[i] for i in y]
-        source = ColumnDataSource(
-            data=dict(top=top, bottom=bottom, left=left, right=right,
-                chunk_min=chunk_min, chunk_max=chunk_max, duration=duration,
-                task_id=y, task=task, colors=colors, ))
+        colors = [COLORS[i % 20] for i in tasks]
+        source = ColumnDataSource(data=dict(
+            top=top,
+            bottom=bottom,
+            left=left,
+            right=right,
+            chunk_min=chunk_min,
+            chunk_max=chunk_max,
+            duration=duration,
+            task_id=tasks,
+            task=task_names,
+            category=category,
+            colors=colors,
+        ))
 
-        TOOLTIPS = [("task", "@task"), ("desc", "@task_id"),
-            # ("(x,y)", "($x, $y)"),
-            ("duration", "@duration"),
-            ("chunk_range", "(@chunk_min, @chunk_max)"),
-            ("(t,l)", "(@top, @left)"),
-            # ("fill color", "$color[hex, swatch]:fill_color"),
-            ("index", "$index"), ]
+        TOOLTIPS = [("task", "@task"),
+                    ("desc", "@task_id"),
+                    ("category", "@category"),
+                    ("duration", "@duration"),
+                    ("chunk_range", "(@chunk_min, @chunk_max)"),
+                    ("(t,l)", "(@top, @left)"),
+                    ("index", "$index"),
+                    ]
 
         # [Bokeh] inverted axis range example:
         # https://groups.google.com/a/continuum.io/forum/#!topic/bokeh/CJAvppgQmKo
@@ -1040,15 +1051,17 @@ class CalendarSolver:
         #  not be the case when more task types are incorporated
         task_display = []
         curr_task = ""
-        for name in task:
+        for name in task_names:
             if name == curr_task:
                 task_display.append("")
             else:
                 curr_task = name
                 task_display.append(name)
-        source2 = ColumnDataSource(
-            data=dict(x=left, y=top, # abbreviated version of task
-                task=[k[:17] for k in task_display], ))
+        source2 = ColumnDataSource(data=dict(
+            x=left,
+            y=top,  # abbreviated version of task
+            task=[k[:17] for k in task_display],
+        ))
 
         # Annotate rectangles with task name
         # [Bokeh] Text properties:

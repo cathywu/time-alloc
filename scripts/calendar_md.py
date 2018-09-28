@@ -12,37 +12,58 @@ import timealloc.util_time as tutil
 
 DEFAULT_CHUNK_MIN = 2  # in IP slot units
 DEFAULT_CHUNK_MAX = 20  # in IP slot units
+MODIFIERS = ['after', 'before', 'at', 'on']
+num_timeslots = 24 * 7 * tutil.SLOTS_PER_HOUR
 
+# User specified input files
 time_allocation_fname = "scratch/time-allocation-2018-09-03.md"
 tasks_fname = "scratch/tasks-2018-09-27.md"
 
 tasks = TaskParser(time_allocation_fname, tasks_fname)
 
-MODIFIERS = ['after', 'before', 'at', 'on']
+task_names = list(tasks.tasks.keys())
+num_work_tasks = len(task_names)
 
-# User defined parameters
-num_tasks = len(tasks.tasks.keys())
-num_timeslots = 24 * 7 * tutil.SLOTS_PER_HOUR
+category_names = list(tasks.time_alloc.keys())[:10]
+task_names += category_names
 
-task_duration = np.ones(num_tasks)  # initialize task duration as 1 slot
+for i, task in enumerate(task_names):
+    print(i, task)
+
+num_categories = len(category_names)
+num_tasks = num_work_tasks + num_categories
+
+# TODO clean up
+task_duration = 336*np.ones(num_tasks)  # initialize task duration as 1 slot
 task_chunk_min = DEFAULT_CHUNK_MIN * np.ones(num_tasks)
 # FIXME(cathywu) 10 is currently not supported, so these constraints should be
 #  off by default
 task_chunk_max = DEFAULT_CHUNK_MAX * np.ones(num_tasks)
 
-# FIXME(cathywu) this is temporary for initially supporting categories
-num_categories = 1
-category_names = ["work"]
+# Special setup for default tasks (default task for each category)
+task_chunk_min[num_work_tasks:] = 0  # these tasks can be slotted in however
+task_chunk_max[num_work_tasks:] = 300
 
 # num_tasks-by-num_categories matrix
 task_category = np.zeros((num_tasks, num_categories))
 # FIXME(cathywu) this is temporary for initially supporting categories
-task_category[:, 0] = 1
-category_min = np.array([33,])
-category_max = np.array([300,])
+category_min = np.ones(num_categories)
+category_max = 336*np.ones(num_categories)  # FIXME(cathywu) support this
+for i, cat in enumerate(category_names):
+    if 'total' in tasks.time_alloc[cat]:
+        category_min[i] = tasks.time_alloc[cat]['total'] * tutil.SLOTS_PER_HOUR
+
+work_category = category_names.index("Work")
+work_tasks = range(num_work_tasks)
+task_category[work_tasks, work_category] = 1
+for i in range(num_categories):
+    task_category[num_work_tasks+i, i] = 1
+print("Task category", task_category)
 
 # FIXME(cathywu) have non-uniform utilities
 utilities = np.ones((num_timeslots, num_tasks, num_categories))
+# Fewer points for scheduling default tasks
+utilities[:, num_work_tasks:, :] = 0.5  # TODO parameterize this
 
 # Working hours
 # TODO(cathywu) remove this for full scheduling version
@@ -52,7 +73,13 @@ stime = tutil.text_to_struct_time("9:30pm")
 mask = tutil.struct_time_to_slot_mask(stime, modifier="before")
 work_mask = np.array(np.logical_and(work_mask, mask), dtype=int)
 
+# Contiguous (0) or spread (1) scheduling
+task_spread = np.zeros(num_tasks)
+
 print("Number of tasks", num_tasks)
+# Task specific time constraints mask
+# Assume first num_work_tasks entries are for work entries
+# TODO(cathywu) refactor this
 overall_mask = np.ones((24*7*tutil.SLOTS_PER_HOUR, num_tasks))
 for i, task in enumerate(tasks.tasks.keys()):
     total = tasks.tasks[task]["total"]
@@ -92,6 +119,12 @@ for i, task in enumerate(tasks.tasks.keys()):
             task_chunk_max[i] = tutil.hour_to_ip_slot(float(chunks[-1]))
         elif key == "total":
             pass
+        elif key == 'spread':
+            task_spread[i] = True
+        elif key == 'display name':
+            # Use tasks display names if provided
+            # TODO(cathywu) Use full task names for eventual gcal events?
+            task_names[i] = tasks.tasks[task]['display name']
         else:
             print('Not yet handled key ({}) for {}'.format(key, task))
 
@@ -101,18 +134,6 @@ for i, task in enumerate(tasks.tasks.keys()):
     # print(overall_mask.reshape((7,int(overall_mask.size/7))))
 
 print('Chunks', task_chunk_min, task_chunk_max)
-
-# Contiguous (0) or spread (1) scheduling
-task_spread = np.zeros(num_tasks)
-
-# Use tasks display names if provided
-# TODO(cathywu) Use full task names for eventual gcal events?
-task_names = list(tasks.tasks.keys())
-for i, task in enumerate(tasks.tasks.keys()):
-    if 'display name' in tasks.tasks[task]:
-        task_names[i] = tasks.tasks[task]['display name']
-    if 'spread' in tasks.tasks[task]:
-        task_spread[i] = True
 
 # Permit the scheduling of short tasks
 # TODO(cathywu) Permit the grouping of small tasks into larger ones? Like an
@@ -154,5 +175,3 @@ array = np.reshape([y for (x,y) in cal.instance.A.get_values().items()],
 print("Schedule (timeslot x task):")
 print(array)
 print('Solve time', solve_time)
-for i, task in enumerate(tasks.tasks.keys()):
-    print(i, task)

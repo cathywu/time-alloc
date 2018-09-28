@@ -314,12 +314,11 @@ class CalendarSolver:
             sum_s S_cat[s,k] >= cat_days[k]
             """
             ind_s = model.dayslots
-            ind_j = model.tasks
-            total = sum(model.S_cat[s, k] for s in ind_s for j in ind_j)
+            total = sum(model.S_cat[s, k] for s in ind_s)
             return self.category_days_total[k], total, None
 
-        self.model.constrain_cat_days1 = Constraint(self.model.categories,
-                                                    rule=rule)
+        # self.model.constrain_cat_days1 = Constraint(self.model.categories,
+        #                                             rule=rule)
 
     def _constraints_task_spread(self):
         """

@@ -158,9 +158,9 @@ class CalendarSolver:
         """ Objective function to minimize """
 
         def obj_expression(model):
-            # return -(model.A_total + model.CTu_total + model.CTl_total +
-            #          model.S_total)
-            return -(model.A_total)
+            return -(model.A_total + model.CTu_total + model.CTl_total +
+                     model.S_total)
+            # return -(model.A_total)
             # model.A_total + model.CTu / self.slack_cont + model.CTl /
             # self.slack_cont)
             # return -(summation(self.utilities, model.A) + summation(
@@ -341,7 +341,7 @@ class CalendarSolver:
 
         def rule(model):
             den = self.num_tasks * slots
-            num = 0.25
+            num = 5
             weights = np.ones((7, self.num_tasks))
             for j in range(self.num_tasks):
                 weights[:, j] = self.task_spread[j]
@@ -823,18 +823,18 @@ class CalendarSolver:
         self._constraints_category_days()
 
         self._constraints_chunking1m()
-        self._constraints_chunking2m()
-        self._constraints_chunking3m()
-        self._constraints_chunking4m()
-        self._constraints_chunking5m()
-        self._constraints_chunking6m()
+        # self._constraints_chunking2m()
+        # self._constraints_chunking3m()
+        # self._constraints_chunking4m()
+        # self._constraints_chunking5m()
+        # self._constraints_chunking6m()
 
-        # FIXME(cathywu) dramatic slowdown
-        self._constraints_chunking4M()
-        self._constraints_chunking5M()
-        self._constraints_chunking6M()
-        self._constraints_chunking7M()
-        self._constraints_chunking8M()
+        # # FIXME(cathywu) dramatic slowdown
+        # self._constraints_chunking4M()
+        # self._constraints_chunking5M()
+        # self._constraints_chunking6M()
+        # self._constraints_chunking7M()
+        # self._constraints_chunking8M()
 
         # objective
         self._objective_cost()

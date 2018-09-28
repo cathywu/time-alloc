@@ -342,11 +342,9 @@ class CalendarSolver:
 
             Maximizing sum_i S[i,j] encourages spreading out the task chunks
             """
-            active = self.task_spread[j]
             den = sum(diag[p, :])
-            ind = model.timeslots
-            total = sum(diag[p, i] * model.A[i, j] for i in ind) / den
-            total *= active
+            ind_i = model.timeslots
+            total = sum(diag[p, i] * model.A[i, j] for i in ind_i) / den
             # Desired: S[i,j] = ceil(total)
             # Desired: S[i,j] = 0 if total <= 0; otherwise, S[i,j] = 1
             return -EPS, model.S[p, j] - total, 1 - EPS
@@ -357,7 +355,10 @@ class CalendarSolver:
         def rule(model):
             den = self.num_tasks * slots
             num = 0.25
-            total = summation(model.S) / den * num
+            weights = np.ones((7, self.num_tasks))
+            for j in range(self.num_tasks):
+                weights[:, j] = self.task_spread[j]
+            total = summation(weights, model.S) / den * num
             return model.S_total == total
 
         self.model.constrain_spread1 = Constraint(rule=rule)

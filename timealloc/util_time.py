@@ -8,8 +8,22 @@ import numpy as np
 
 # TODO(cathywu) move to config
 SLOTS_PER_HOUR = 2  # each slot represents 15 minutes
-WEEKDAYS = {'SATURDAY': 0, 'SUNDAY': 1, 'MONDAY': 2, 'TUESDAY': 3,
-            'WEDNESDAY': 4, 'THURSDAY': 5, 'FRIDAY': 6, }
+WEEKDAYS = {
+    'SATURDAY': 0,
+    'SUNDAY': 1,
+    'MONDAY': 2,
+    'TUESDAY': 3,
+    'WEDNESDAY': 4,
+    'THURSDAY': 5,
+    'FRIDAY': 6,
+    'Sa': 0,
+    'Su': 1,
+    'M': 2,
+    'T': 3,
+    'W': 4,
+    'R': 5,
+    'F': 6,
+}
 
 
 def hour_to_ip_slot(hour):
@@ -162,3 +176,20 @@ def modifier_mask(clause, total):
                            "{} {} not supported".format(modifier, attr))
             sub_mask = np.logical_or(sub_mask, mask)
     return sub_mask
+
+
+def parse_days(string):
+    if string == "daily":
+        return np.ones(7), 7
+    else:
+        mask = np.zeros(7)
+        string_bits = string.split('; ', 1)
+        days = string_bits[0].split(" ")
+        if len(string_bits) > 1:
+            total = int(string_bits[-1])
+        else:
+            total = len(days)
+        for day in days:
+            mask[WEEKDAYS[day]] = 1
+        return mask, total
+

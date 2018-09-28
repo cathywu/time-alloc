@@ -24,7 +24,7 @@ tasks = TaskParser(time_allocation_fname, tasks_fname)
 task_names = list(tasks.tasks.keys())
 num_work_tasks = len(task_names)
 
-category_names = list(tasks.time_alloc.keys())[:2]
+category_names = list(tasks.time_alloc.keys())
 task_names += category_names
 
 for i, task in enumerate(task_names):
@@ -53,8 +53,8 @@ for i, cat in enumerate(category_names):
     if 'total' in tasks.time_alloc[cat]:
         category_min[i] = tasks.time_alloc[cat]['total'] * tutil.SLOTS_PER_HOUR
 
-# work_category = category_names.index("Work")
-work_category = 0  # FIXME override
+work_category = category_names.index("Work")
+# work_category = 0  # FIXME override
 work_tasks = range(num_work_tasks)
 task_category[work_tasks, work_category] = 1
 for i in range(num_categories):

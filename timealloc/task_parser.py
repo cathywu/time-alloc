@@ -50,8 +50,10 @@ class TaskParser:
                 for level2 in top.next.next.children:
                     if not isinstance(level2, NavigableString):
                         # print('Category:', level2.next)
-                        m = re.search('(.+) \[([\.\d]+)\].*', level2.next)
+                        m = re.search('(.+) \[([-\.\d]+)\].*', level2.next)
                         category = m.group(1)
+                        total = m.group(2).split('-')
+
                         total = float(m.group(2))
 
                         if category not in self.time_alloc:

@@ -62,9 +62,9 @@ for i in range(num_categories):
 print("Task category", task_category)
 
 # FIXME(cathywu) have non-uniform utilities
-utilities = np.ones((num_timeslots, num_tasks, num_categories))
+utilities = np.ones((num_timeslots, num_tasks))
 # Fewer points for scheduling default tasks
-utilities[:, num_work_tasks:, :] = 0.5  # TODO parameterize this
+utilities[:, num_work_tasks:] = 0.5  # TODO parameterize this
 
 # Working hours
 # TODO(cathywu) remove this for full scheduling version

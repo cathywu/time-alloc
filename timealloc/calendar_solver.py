@@ -17,7 +17,7 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 1e3  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 2e2  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -99,13 +99,9 @@ class CalendarSolver:
         Convention: variables are capitalized, i.e. model.A, and not model.a
         """
         # allocation A
-        self.model.A = Var(self.model.timeslots * self.model.tasks *
-                           self.model.categories,
+        self.model.A = Var(self.model.timeslots * self.model.tasks,
                            domain=pe.Boolean)
         self.model.A_total = Var(domain=pe.Reals)
-        # assignment matrix T (any nonzero entries in A[i,j,:])
-        self.model.T = Var(self.model.timeslots * self.model.tasks,
-                           domain=pe.Boolean)
         # category matrix C (category correctness for A[i,j,:])
         self.model.C = Var(self.model.timeslots * self.model.tasks,
                            domain=pe.Boolean)
@@ -167,7 +163,7 @@ class CalendarSolver:
             total = sum(model.A[i, j, k] for k in
                         model.categories) / self.num_categories
             # S[i,j] = ceil(total)
-            return -EPS, model.T[i, j] - total, 1 - EPS
+            return -EPS, model.A[i, j] - total, 1 - EPS
 
         self.model.constrain_assigned = Constraint(self.model.timeslots,
                                                 self.model.tasks,
@@ -198,10 +194,11 @@ class CalendarSolver:
             # Desired2: I want anything but: task j to be assigned and task j
             # to have the wrong categories
             total = sum(
-                (1 - model.T[i, j]) + model.C[i, j] for i in model.timeslots for
+                (1 - model.A[i, j]) + model.C[i, j] for i in model.timeslots for
                 j in model.tasks)
             # total = sum(
-            #     model.T[i, j] * (1 - model.C[i, j]) for i in model.timeslots for
+            #     model.A[i, j] * (1 - model.C[i, j]) for i in
+            # model.timeslots for
             #     j in model.tasks)
             return self.num_timeslots * self.num_tasks, total, None
 
@@ -213,7 +210,7 @@ class CalendarSolver:
         """
 
         def rule(model, i, j):
-            return 0, model.T[i, j] * (1-self.valid[i, j]), 0
+            return 0, model.A[i, j] * (1-self.valid[i, j]), 0
 
         self.model.constrain_valid = Constraint(self.model.timeslots,
                                                 self.model.tasks,
@@ -227,7 +224,7 @@ class CalendarSolver:
         """
 
         def rule(model, i):
-            return 0, sum(model.T[i, j] for j in model.tasks), 1
+            return 0, sum(model.A[i, j] for j in model.tasks), 1
 
         self.model.constrain_nonoverlapping = Constraint(self.model.timeslots,
                                                          rule=rule)
@@ -240,7 +237,9 @@ class CalendarSolver:
         def rule(model, k):
             ind_i = model.timeslots
             ind_j = model.tasks
-            cat_k_total = sum(model.A[i, j, k] for i in ind_i for j in ind_j)
+            cat_k_total = sum(
+                model.A[i, j] * self.task_category[j, k] for i in ind_i for j in
+                ind_j)
             return model.C_total[k] == cat_k_total
 
         self.model.constrain_cat_duration0 = Constraint(self.model.categories,
@@ -257,12 +256,11 @@ class CalendarSolver:
         Each task should stay within task-specific allocation bounds
         """
 
-        def rule(model, j, k):
-            task_j_total = sum(model.A[i, j, k] for i in model.timeslots)
+        def rule(model, j):
+            task_j_total = sum(model.A[i, j] for i in model.timeslots)
             return 0, task_j_total, self.task_duration[j]
 
         self.model.constrain_task_duration = Constraint(self.model.tasks,
-                                                        self.model.categories,
                                                         rule=rule)
 
     def _constraints_utility(self):
@@ -304,7 +302,7 @@ class CalendarSolver:
             active = self.task_spread[j]
             den = sum(diag[p, :])
             ind = model.timeslots
-            total = sum(diag[p, i] * model.T[i, j] for i in ind) / den
+            total = sum(diag[p, i] * model.A[i, j] for i in ind) / den
             total *= active
             # Desired: S[i,j] = ceil(total)
             # Desired: S[i,j] = 0 if total <= 0; otherwise, S[i,j] = 1
@@ -348,9 +346,9 @@ class CalendarSolver:
             for i in model.timeslots:
                 for j in model.tasks:
                     den = self.num_timeslots - i
-                    total += sum(triu[i, k] * (1-model.T[k, j]) for k in
+                    total += sum(triu[i, k] * (1-model.A[k, j]) for k in
                                  ind) / den
-            # total = sum(model.cTu[i, k] * (1-model.T[k, j]) for k in ind) /
+            # total = sum(model.cTu[i, k] * (1-model.A[k, j]) for k in ind) /
             #  den
             return -1 + EPS, model.CTu - total, EPS + self.slack_cont
 
@@ -372,9 +370,9 @@ class CalendarSolver:
             for i in model.timeslots:
                 for j in model.tasks:
                     den = i + 1
-                    total = sum(tril[i, k] * (1-model.T[k, j]) for k in
+                    total = sum(tril[i, k] * (1-model.A[k, j]) for k in
                                 ind) / den
-            # total = sum(model.cTl[i, k] * (1-model.T[k, j]) for k in ind) /
+            # total = sum(model.cTl[i, k] * (1-model.A[k, j]) for k in ind) /
             #  den
             return -1 + EPS, model.CTl - total, EPS + self.slack_cont
 
@@ -414,7 +412,7 @@ class CalendarSolver:
             active = 1-self.task_spread[j]
             den = sum(triu[i, :])
             ind = model.timeslots
-            total = sum(triu[i, k] * (1-model.T[k, j]) for k in ind) / den
+            total = sum(triu[i, k] * (1-model.A[k, j]) for k in ind) / den
             total *= active
             # CTu[i,j] = floor(total)
             return -1 + EPS, model.CTu[i, j] - total, EPS + self.slack_cont
@@ -437,7 +435,7 @@ class CalendarSolver:
             active = 1-self.task_spread[j]
             den = sum(tril[i, :])
             ind = model.timeslots
-            total = sum(tril[i, k] * (1-model.T[k, j]) for k in ind) / den
+            total = sum(tril[i, k] * (1-model.A[k, j]) for k in ind) / den
             total *= active
             return -1 + EPS, model.CTl[i, j] - total, EPS + self.slack_cont
 
@@ -496,7 +494,7 @@ class CalendarSolver:
             C = operator.attrgetter(var_name)(model)[i, j]
             if self.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            total = sum(L[i, k] * model.T[k, j] for k in model.timeslots)
+            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
             return 0, C - total, None
 
         self.model.constrain_chunk11 = Constraint(self.model.cmin1_timeslots,
@@ -537,7 +535,7 @@ class CalendarSolver:
             C = operator.attrgetter(var_name)(model)[i, j]
             if self.task_chunk_min[j] <= chunk_len:
                 return Constraint.Feasible
-            total = sum(L[i, k] * model.T[k, j] for k in model.timeslots)
+            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
             return 0, C - total, None
 
         self.model.constrain_chunk21 = Constraint(self.model.c2timeslots,
@@ -616,7 +614,7 @@ class CalendarSolver:
                 return Constraint.Feasible
             elif mode == 'max' and self.task_chunk_max[j] + 1 != chunk_len:
                 return Constraint.Feasible
-            total = sum(L[i, k] * model.T[k, j] for k in model.timeslots)
+            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
             return 0, C - total, None
 
         return rule
@@ -892,7 +890,7 @@ class CalendarSolver:
 
         def rule(model, i, j):
             """ D[i,j] + (A[i,j) - A[i+1,j]) >= 0 """
-            return 0, model.T[i, j] - model.T[i + 1, j] + model.D[i, j], None
+            return 0, model.A[i, j] - model.A[i + 1, j] + model.D[i, j], None
 
         self.model.constrain_switching1 = Constraint(self.model.dtimeslots,
                                                      self.model.tasks,
@@ -900,7 +898,7 @@ class CalendarSolver:
 
         def rule(model, i, j):
             """ D[i,j] - (A[i,j) - A[i+1,j]) >= 0 """
-            return 0, -(model.T[i, j] - model.T[i + 1, j]) + model.D[i, j], None
+            return 0, -(model.A[i, j] - model.A[i + 1, j]) + model.D[i, j], None
 
         self.model.constrain_switching2 = Constraint(self.model.dtimeslots,
                                                      self.model.tasks,
@@ -935,8 +933,8 @@ class CalendarSolver:
         self._constraints_other()
         self._constraints_utility()
         self._constraints_category_duration()
-        self._constraints_task_assigned()
-        self._constraints_task_cat_correctness()
+        # self._constraints_task_assigned()
+        # self._constraints_task_cat_correctness()
         self._constraints_task_valid()
         self._constraints_nonoverlapping_tasks()
         self._constraints_task_duration()

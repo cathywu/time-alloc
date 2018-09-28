@@ -17,7 +17,7 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 3e2  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 2e2  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -100,17 +100,41 @@ class CalendarSolver:
 
         Convention: variables are capitalized, i.e. model.A, and not model.a
         """
-        # allocation A
+        # Allocation A
         self.model.A = Var(self.model.timeslots * self.model.tasks,
                            domain=pe.Boolean)
+        # Total utility of allocation A
         self.model.A_total = Var(domain=pe.Reals)
-        # day slots
+
+        # Day slots
         self.model.dayslots = RangeSet(0, 6)  # 7 days
+        # Tasks assigned on days
         self.model.S = Var(self.model.dayslots * self.model.tasks,
                            domain=pe.Integers)
-        # category durations
+        # Spread utility
+        self.model.S_total = Var(domain=pe.Reals)
+
+        # Categories assigned on days
+        self.model.S_cat = Var(self.model.dayslots * self.model.categories,
+                               domain=pe.Boolean)
+        # Total days on which categories are assigned
+        self.model.S_cat_total = Var(self.model.categories, domain=pe.Integers)
+
+        # Contiguity slots (half-days)
+        self.cont_incr = CONT_STRIDE * tutil.SLOTS_PER_HOUR
+        self.cont_slots = self.num_timeslots / self.cont_incr - 1
+        self.model.contslots = RangeSet(0, self.cont_slots - 1)
+        self.model.CTu = Var(self.model.contslots * self.model.tasks,
+                             domain=pe.Integers)
+        self.model.CTl = Var(self.model.contslots * self.model.tasks,
+                             domain=pe.Integers)
+        # Contiguity utility
+        self.model.CTu_total = Var(domain=pe.Reals)
+        self.model.CTl_total = Var(domain=pe.Reals)
+
+        # Category durations
         self.model.C_total = Var(self.model.categories, domain=pe.Reals)
-        # delta D
+        # Delta D
         # TODO(cathywu) consider whether this / switching constraints are needed
         # self.model.D = Var(self.model.dtimeslots * self.model.tasks,
         #                    domain=pe.Integers)
@@ -134,9 +158,9 @@ class CalendarSolver:
         """ Objective function to minimize """
 
         def obj_expression(model):
-            return -(model.A_total + model.CTu_total + model.CTl_total +
-                     model.S_total)
-            # return -(model.A_total)
+            # return -(model.A_total + model.CTu_total + model.CTl_total +
+            #          model.S_total)
+            return -(model.A_total)
             # model.A_total + model.CTu / self.slack_cont + model.CTl /
             # self.slack_cont)
             # return -(summation(self.utilities, model.A) + summation(
@@ -147,6 +171,55 @@ class CalendarSolver:
         # self.model.obj_cost = Objective(rule=self.model.exp_cost)
         self.model.obj_cost = Objective(rule=obj_expression)
 
+    def _constraints_variables(self):
+        """
+        These are safe constraints because they are only used to define
+        variables. So for debugging purposes, they can always be included.
+        They should never be the cause of a constraint violation.
+        """
+
+        def rule(model, k):
+            ind_i = model.timeslots
+            ind_j = model.tasks
+            cat_k_total = sum(
+                model.A[i, j] * self.task_category[j, k] for i in ind_i for j in
+                ind_j)
+            return model.C_total[k] == cat_k_total
+
+        self.model.constrain_cat_duration0 = Constraint(self.model.categories,
+                                                        rule=rule)
+
+        def rule(model, s, k):
+            """
+            S_cat[s,k] = whether (any tasks of) category k is assigned on day s
+            """
+            den = sum(self.task_category[:, k])
+            ind_j = model.tasks
+            total = sum(self.task_category[j, k] * model.S[s, j] for j in
+                        ind_j) / den
+            # Desired: S[i,j] = ceil(total)
+            # Desired: S[i,j] = 0 if total <= 0; otherwise, S[i,j] = 1
+            return -EPS, model.S_cat[s, k] - total, 1 - EPS
+
+        self.model.constrain_cat_days0 = Constraint(self.model.dayslots,
+                                                    self.model.categories,
+                                                    rule=rule)
+
+        def rule(model, k):
+            """
+            S_cat_total[k] = number of unique days in which task from
+            category k were assigned
+
+            More precisely:
+            sum_s S_cat[s,k] == S_cat_total[k]
+            """
+            ind_s = model.dayslots
+            total = sum(model.S_cat[s, k] for s in ind_s)
+            return model.S_cat_total[k] == total
+
+        self.model.constrain_cat_days1 = Constraint(self.model.categories,
+                                                    rule=rule)
+
     def _constraints_external(self):
         """
         Hard constraints from external calendar (e.g. pre-scheduled meetings).
@@ -156,56 +229,6 @@ class CalendarSolver:
     def _constraints_other(self):
         """ Other constraints, user imposed, like keeping Friday night free """
         pass
-
-    def _constraints_task_assigned(self):
-        """
-        Indicator variables (matrix) of whether task j is assigned in slot i
-        """
-
-        def rule(model, i, j):
-            total = sum(model.A[i, j, k] for k in
-                        model.categories) / self.num_categories
-            # S[i,j] = ceil(total)
-            return -EPS, model.A[i, j] - total, 1 - EPS
-
-        self.model.constrain_assigned = Constraint(self.model.timeslots,
-                                                self.model.tasks,
-                                                rule=rule)
-
-    def _constraints_task_cat_correctness(self):
-        """
-        Indicator variables (matrix) of whether task j is assigned to exactly
-        the right categories (in time slot i)
-
-        Ensure that task categories are consistent in allocation A
-        """
-
-        def rule(model, i, j):
-            total = sum(model.A[i, j, k] * self.task_category[j, k] + (
-                1 - model.A[i, j, k]) * (1 - self.task_category[j, k]) for k in
-                        range(self.num_categories)) / self.num_categories
-            # C[i,j] = floor(total)
-            return -1+EPS, model.C[i, j] - total, EPS
-
-        self.model.constrain_cat_correctness = Constraint(self.model.timeslots,
-                                                          self.model.tasks,
-                                                          rule=rule)
-
-        def rule(model):
-            # Desired: I want task j to be unassigned or task j to be
-            # assigned to all of its categories
-            # Desired2: I want anything but: task j to be assigned and task j
-            # to have the wrong categories
-            total = sum(
-                (1 - model.A[i, j]) + model.C[i, j] for i in model.timeslots for
-                j in model.tasks)
-            # total = sum(
-            #     model.A[i, j] * (1 - model.C[i, j]) for i in
-            # model.timeslots for
-            #     j in model.tasks)
-            return self.num_timeslots * self.num_tasks, total, None
-
-        self.model.constrain_cat_consistency = Constraint(rule=rule)
 
     def _constraints_task_valid(self):
         """
@@ -236,17 +259,6 @@ class CalendarSolver:
         """
         Each category duration should be within some user-specified range
         """
-
-        def rule(model, k):
-            ind_i = model.timeslots
-            ind_j = model.tasks
-            cat_k_total = sum(
-                model.A[i, j] * self.task_category[j, k] for i in ind_i for j in
-                ind_j)
-            return model.C_total[k] == cat_k_total
-
-        self.model.constrain_cat_duration0 = Constraint(self.model.categories,
-                                                        rule=rule)
 
         def rule(model, k):
             return self.category_min[k], model.C_total[k], self.category_max[k]
@@ -284,37 +296,17 @@ class CalendarSolver:
         reward the number of days that a task is scheduled.
         """
 
-        self.model.S_cat = Var(self.model.dayslots * self.model.categories,
-                               domain=pe.Boolean)
-
-        def rule(model, s, k):
-            """
-            S_cat[s,k] = whether category k is assigned on day s
-            """
-            den = sum(self.task_category[:, k])
-            ind_j = model.tasks
-            total = sum(self.task_category[j, k] * model.S[s, j] for j in
-                        ind_j) / den
-            # Desired: S[i,j] = ceil(total)
-            # Desired: S[i,j] = 0 if total <= 0; otherwise, S[i,j] = 1
-            return -EPS, model.S_cat[s, k] - total, 1 - EPS
-
-        self.model.constrain_cat_days0 = Constraint(self.model.dayslots,
-            self.model.categories, rule=rule)
-
         def rule(model, k):
             """
             Lower bound on number of distinct days in which a (task from a)
             category is assigned.
 
             More precisely:
-            sum_s S_cat[s,k] >= cat_days[k]
+            sum_s S_cat[s,k] = S_cat_total[k] >= cat_days[k]
             """
-            ind_s = model.dayslots
-            total = sum(model.S_cat[s, k] for s in ind_s)
-            return self.category_days_total[k], total, None
+            return self.category_days_total[k], model.S_cat_total[k], None
 
-        self.model.constrain_cat_days1 = Constraint(self.model.categories,
+        self.model.constrain_cat_days2 = Constraint(self.model.categories,
                                                     rule=rule)
 
     def _constraints_task_spread(self):
@@ -326,8 +318,6 @@ class CalendarSolver:
         incr = 24 * tutil.SLOTS_PER_HOUR
         diag = util.blockdiag(self.num_timeslots, incr=incr)
         slots = diag.shape[0]
-
-        self.model.S_total = Var(domain=pe.Reals)
 
         def rule(model, p, j):
             """
@@ -366,18 +356,8 @@ class CalendarSolver:
         i.e. reward shorter "elapsed" times
         """
         # CONT_STRIDE=1 would give original implementation
-        incr = CONT_STRIDE * tutil.SLOTS_PER_HOUR
-        triu = util.triu(self.num_timeslots, incr=incr)
-        tril = util.tril(self.num_timeslots, incr=incr)
-        cont_slots = self.num_timeslots/incr-1
-
-        self.model.contslots = RangeSet(0, cont_slots - 1)
-        self.model.CTu = Var(self.model.contslots * self.model.tasks,
-                             domain=pe.Integers)
-        self.model.CTl = Var(self.model.contslots * self.model.tasks,
-                             domain=pe.Integers)
-        self.model.CTu_total = Var(domain=pe.Reals)
-        self.model.CTl_total = Var(domain=pe.Reals)
+        triu = util.triu(self.num_timeslots, incr=self.cont_incr)
+        tril = util.tril(self.num_timeslots, incr=self.cont_incr)
 
         def rule(model, i, j):
             """
@@ -425,7 +405,7 @@ class CalendarSolver:
                                                        rule=rule)
 
         def rule(model):
-            den = self.num_tasks * cont_slots * (self.slack_cont + 1)
+            den = self.num_tasks * self.cont_slots * (self.slack_cont + 1)
             num = 0.25
             total = summation(model.CTu) / den * num
             return model.CTu_total == total
@@ -433,94 +413,12 @@ class CalendarSolver:
         self.model.constrain_contiguity_ut = Constraint(rule=rule)
 
         def rule(model):
-            den = self.num_tasks * cont_slots * (self.slack_cont + 1)
+            den = self.num_tasks * self.cont_slots * (self.slack_cont + 1)
             num = 0.25
             total = summation(model.CTl) / den * num
             return model.CTl_total == total
 
         self.model.constrain_contiguity_lt = Constraint(rule=rule)
-
-    def _constraints_chunking1(self):
-        """
-        Ensures that there are no tasks allocated for only 1 slot
-        """
-        chunk_len = 1
-        offset = 1
-        filter = np.ones(chunk_len + offset * 2)
-        filter[0:offset] = -1
-        filter[-offset:] = -1
-        # filter = np.array([-1, 1, -1])
-        L, b = util.linop_from_1d_filter(filter, self.num_timeslots,
-                                         offset=offset)
-        c_len = self.num_timeslots - filter.size + 1 + offset * 2
-
-        self.model.cmin1_timeslots = RangeSet(0, c_len - 1)
-        self.model.C1 = Var(self.model.cmin1_timeslots * self.model.tasks,
-                            domain=pe.Reals)
-        var_name = 'C1'
-
-        def rule(model, i, j):
-            """
-            C[i, j]==1 means that the pattern is matched, anything less is okay
-            """
-            C = operator.attrgetter(var_name)(model)[i, j]
-            if self.task_chunk_min[j] <= chunk_len:
-                return Constraint.Feasible
-            return None, C, chunk_len - 1
-
-        self.model.constrain_chunk10 = Constraint(self.model.cmin1_timeslots,
-                                                  self.model.tasks, rule=rule)
-
-        def rule(model, i, j):
-            C = operator.attrgetter(var_name)(model)[i, j]
-            if self.task_chunk_min[j] <= chunk_len:
-                return Constraint.Feasible
-            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
-            return 0, C - total, None
-
-        self.model.constrain_chunk11 = Constraint(self.model.cmin1_timeslots,
-                                                  self.model.tasks, rule=rule)
-
-    def _constraints_chunking2(self):
-        """
-        Ensures that there are no tasks allocated for only 2 slots
-        """
-        chunk_len = 2
-        offset = 1
-        filter = np.ones(chunk_len + offset * 2)
-        filter[0:offset] = -1
-        filter[-offset:] = -1
-        # filter = np.array([-1, 1, 1, -1])
-        L, b = util.linop_from_1d_filter(filter, self.num_timeslots,
-                                         offset=offset)
-        c_len = self.num_timeslots - filter.size + 1 + offset * 2
-
-        self.model.c2timeslots = RangeSet(0, c_len - 1)
-        self.model.C2 = Var(self.model.c2timeslots * self.model.tasks,
-                            domain=pe.Reals)
-        var_name = 'C2'
-
-        def rule(model, i, j):
-            """
-            C[i, j]==2 means that the pattern is matched, anything less is okay
-            """
-            C = operator.attrgetter(var_name)(model)[i, j]
-            if self.task_chunk_min[j] <= chunk_len:
-                return Constraint.Feasible
-            return None, C, chunk_len - 1
-
-        self.model.constrain_chunk20 = Constraint(self.model.c2timeslots,
-                                                  self.model.tasks, rule=rule)
-
-        def rule(model, i, j):
-            C = operator.attrgetter(var_name)(model)[i, j]
-            if self.task_chunk_min[j] <= chunk_len:
-                return Constraint.Feasible
-            total = sum(L[i, k] * model.A[k, j] for k in model.timeslots)
-            return 0, C - total, None
-
-        self.model.constrain_chunk21 = Constraint(self.model.c2timeslots,
-                                                  self.model.tasks, rule=rule)
 
     def _get_chunk_parameters(self, chunk_len, offset, mode):
         """
@@ -911,12 +809,11 @@ class CalendarSolver:
         # variables
         self._variables()
         # constraints
+        self._constraints_variables()
         self._constraints_external()
         self._constraints_other()
         self._constraints_utility()
         self._constraints_category_duration()
-        # self._constraints_task_assigned()
-        # self._constraints_task_cat_correctness()
         self._constraints_task_valid()
         self._constraints_nonoverlapping_tasks()
         self._constraints_task_duration()
@@ -961,6 +858,7 @@ class CalendarSolver:
         self.instance.S_total.display()
         self.instance.CTu_total.display()
         self.instance.CTl_total.display()
+        self.instance.S_cat_total.display()
         self.instance.C_total.display()
 
     def visualize(self):

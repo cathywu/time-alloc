@@ -102,7 +102,7 @@ class CalendarSolver:
         """
         # Allocation A
         self.model.A = Var(self.model.timeslots * self.model.tasks,
-                           domain=pe.Boolean)
+                           domain=pe.Boolean, initialize=0)
         # Total utility of allocation A
         self.model.A_total = Var(domain=pe.Reals)
 
@@ -110,13 +110,13 @@ class CalendarSolver:
         self.model.dayslots = RangeSet(0, 6)  # 7 days
         # Tasks assigned on days
         self.model.S = Var(self.model.dayslots * self.model.tasks,
-                           domain=pe.Integers)
+                           domain=pe.Integers, initialize=0)
         # Spread utility
         self.model.S_total = Var(domain=pe.Reals)
 
         # Categories assigned on days
         self.model.S_cat = Var(self.model.dayslots * self.model.categories,
-                               domain=pe.Boolean)
+                               domain=pe.Boolean, initialize=0)
         # Total days on which categories are assigned
         self.model.S_cat_total = Var(self.model.categories, domain=pe.Integers)
 
@@ -125,19 +125,23 @@ class CalendarSolver:
         self.cont_slots = self.num_timeslots / self.cont_incr - 1
         self.model.contslots = RangeSet(0, self.cont_slots - 1)
         self.model.CTu = Var(self.model.contslots * self.model.tasks,
-                             domain=pe.Integers)
+                             domain=pe.Integers, initialize=0)
         self.model.CTl = Var(self.model.contslots * self.model.tasks,
-                             domain=pe.Integers)
+                             domain=pe.Integers, initialize=0)
         # Contiguity utility
         self.model.CTu_total = Var(domain=pe.Reals)
         self.model.CTl_total = Var(domain=pe.Reals)
 
         # Category durations
-        self.model.C_total = Var(self.model.categories, domain=pe.Reals)
+        self.model.C_total = Var(self.model.categories, domain=pe.Reals,
+                                 initialize=0)
         # Delta D
         # TODO(cathywu) consider whether this / switching constraints are needed
-        # self.model.D = Var(self.model.dtimeslots * self.model.tasks,
-        #                    domain=pe.Integers)
+        self.model.D = Var(self.model.dtimeslots * self.model.tasks,
+                           domain=pe.Boolean, initialize=0)
+        # Number of switches
+        self.model.D_total = Var(self.model.tasks, domain=pe.Integers,
+                                 initialize=0)
 
     def _objective_switching(self):
         """
@@ -764,40 +768,97 @@ class CalendarSolver:
 
     def _constraints_switching_bounds(self):
         """
-        Impose bounds on the number of task switches
-        TODO(cathywu) impose bounds on the task chunks instead
+        Impose bounds on the number of task switches (more precisely,
+        task starts).
         """
 
         def rule(model, i, j):
-            """ D[i,j] + (A[i,j) - A[i+1,j]) >= 0 """
-            return 0, model.A[i, j] - model.A[i + 1, j] + model.D[i, j], None
+            """
+            Supporting rule: if a chunk is already active at i, then D[i,j] = 0.
+            Excepting i=0.
 
-        self.model.constrain_switching1 = Constraint(self.model.dtimeslots,
-                                                     self.model.tasks,
-                                                     rule=rule)
+            That is,
+            D[i,j] <= (1-A[i, j]) => if A[i, j] == 1, then D[i,j] = 0
+            """
+            if i == 0:
+                return Constraint.Feasible
+            return None, model.D[i, j] - (1 - model.A[i, j]), 0
+
+        # self.model.constrain_switching0 = Constraint(self.model.dtimeslots,
+        #                                              self.model.tasks,
+        #                                              rule=rule)
 
         def rule(model, i, j):
-            """ D[i,j] - (A[i,j) - A[i+1,j]) >= 0 """
-            return 0, -(model.A[i, j] - model.A[i + 1, j]) + model.D[i, j], None
+            """
+            Supporting rule: if a chunk isn't starting at i+1, then D[i,j] = 0.
+            Excepting i=0.
+
+            That is,
+            D[i,j] <= A[i+1, j] => if A[i+1, j] == 0, then D[i,j] = 0
+            """
+            if i == 0:
+                return Constraint.Feasible
+            return None, model.D[i, j] - model.A[i + 1, j], 0
+
+        # self.model.constrain_switching1 = Constraint(self.model.dtimeslots,
+        #                                              self.model.tasks,
+        #                                              rule=rule)
+
+        def rule(model, i, j):
+            """
+            Detects chunks by looking for transitions from 0 to 1 (a chunk
+            starts). Also, if A[0, j] = 1, then we indicate that a chunk has
+            started.
+
+            That is,
+            If A[i,j] == 0 and A[i+1,j] == 1, then D[i,j] = 1
+
+            More precisely:
+            D[i,j] - (A[i+1,j) - A[i,j]) >= 0
+            """
+            if i == 0:
+                return 0, model.D[i, j] - model.A[i, j], None
+            return 0, -(model.A[i + 1, j] - model.A[i, j]) + model.D[i, j], None
 
         self.model.constrain_switching2 = Constraint(self.model.dtimeslots,
                                                      self.model.tasks,
                                                      rule=rule)
 
-        def rule(model, i, j):
-            """ 0 <= D[i,j] <= 1 """
-            return 0, model.D[i, j], 1
+        def rule(model, j):
+            num_chunks = sum(model.D[i, j] for i in model.dtimeslots)
+            return model.D_total[j] == num_chunks
 
-        self.model.constrain_switching3 = Constraint(self.model.dtimeslots,
-                                                     self.model.tasks,
+        self.model.constrain_switching4 = Constraint(self.model.tasks,
                                                      rule=rule)
 
         def rule(model, j):
-            switches = sum(model.D[i, j] for i in model.dtimeslots) / 2
-            return self.task_duration[j] / self.task_chunk_max[j], switches, \
-                   self.task_duration[j] / self.task_chunk_min[j]
+            """
+            Cannot have fewer chunks than duration_j / chunk_max.
+            """
+            if self.task_chunk_min[j] <= 1:
+                return Constraint.Feasible
 
-        self.model.constrain_switching4 = Constraint(self.model.tasks,
+            ind_i = model.timeslots
+            duration_j = sum(model.A[i, j] for i in ind_i)
+            min_chunks = duration_j / self.task_chunk_max[j]
+            return 0, model.D_total[j] - min_chunks, None
+
+        self.model.constrain_switching5 = Constraint(self.model.tasks,
+                                                     rule=rule)
+
+        def rule(model, j):
+            """
+            Cannot have more chunks than duration_j / chunk_min.
+            """
+            if self.task_chunk_min[j] <= 1:
+                return Constraint.Feasible
+
+            ind_i = model.timeslots
+            duration_j = sum(model.A[i, j] for i in ind_i)
+            max_chunks = duration_j / self.task_chunk_min[j]
+            return None, model.D_total[j] - max_chunks, 0
+
+        self.model.constrain_switching6 = Constraint(self.model.tasks,
                                                      rule=rule)
 
     def _construct_ip(self):
@@ -817,12 +878,13 @@ class CalendarSolver:
         self._constraints_task_valid()
         self._constraints_nonoverlapping_tasks()
         self._constraints_task_duration()
-        # self._constraints_switching_bounds()
         self._constraints_task_contiguity()  # FIXME(cathywu) some slowdown
         self._constraints_task_spread()
         self._constraints_category_days()
 
-        self._constraints_chunking1m()
+        self._constraints_switching_bounds()  # instead of chunking constraints
+
+        # self._constraints_chunking1m()
         # self._constraints_chunking2m()
         # self._constraints_chunking3m()
         # self._constraints_chunking4m()
@@ -860,6 +922,7 @@ class CalendarSolver:
         self.instance.CTl_total.display()
         self.instance.S_cat_total.display()
         self.instance.C_total.display()
+        self.instance.D_total.display()
 
     def visualize(self):
         """

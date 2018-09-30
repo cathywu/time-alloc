@@ -17,11 +17,11 @@ NUMSLOTS = 24 * 7 * tutil.SLOTS_PER_HOUR
 # User specified input files
 # time_allocation_fname = "scratch/time-allocation-2018-09-28-simple.md"
 time_allocation_fname = "scratch/time-allocation-2018-09-30.md"
-tasks_fname = "scratch/tasks-2018-09-27b.md"
+tasks_fname = "scratch/tasks-2018-09-30.md"
 
 tasks = TaskParser(time_allocation_fname, tasks_fname)
 
-task_names = list(tasks.tasks.keys())
+task_names = list(tasks.work_tasks.keys())
 num_work_tasks = len(task_names)
 
 category_names = list(tasks.time_alloc.keys())
@@ -126,18 +126,18 @@ print("Number of tasks", num_tasks)
 # Assume first num_work_tasks entries are for work entries
 overall_mask = np.ones((24 * 7 * tutil.SLOTS_PER_HOUR, num_tasks))
 overall_mask[:, -num_categories:] = category_masks
-for i, task in enumerate(tasks.tasks.keys()):
-    total = tasks.tasks[task]["total"]
+for i, task in enumerate(tasks.work_tasks.keys()):
+    total = tasks.work_tasks[task]["total"]
     task_duration[i] = tutil.hour_to_ip_slot(total)
 
-    for key in tasks.tasks[task]:
+    for key in tasks.work_tasks[task]:
         if key == "when":
-            for clause in tasks.tasks[task][key]:
+            for clause in tasks.work_tasks[task][key]:
                 sub_mask = tutil.modifier_mask(clause, total)
                 overall_mask[:, i] = np.array(
                     np.logical_and(overall_mask[:, i], sub_mask), dtype=int)
         elif key == "chunks":
-            chunks = tasks.tasks[task][key].split('-')
+            chunks = tasks.work_tasks[task][key].split('-')
             task_chunk_min[i] = tutil.hour_to_ip_slot(float(chunks[0]))
             task_chunk_max[i] = tutil.hour_to_ip_slot(float(chunks[-1]))
         elif key == "total":
@@ -147,7 +147,7 @@ for i, task in enumerate(tasks.tasks.keys()):
         elif key == 'display name':
             # Use tasks display names if provided
             # TODO(cathywu) Use full task names for eventual gcal events?
-            task_names[i] = tasks.tasks[task]['display name']
+            task_names[i] = tasks.work_tasks[task]['display name']
         else:
             print('Not yet handled key ({}) for {}'.format(key, task))
 

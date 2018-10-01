@@ -665,7 +665,7 @@ class CalendarSolver:
                 return model.A2[i, j] == 0
             return Constraint.Feasible
 
-        self.model.constrain_resolutions3 = Constraint(self.model.timeslots,
+        self.model.constrain_resolutions4 = Constraint(self.model.timeslots,
                                                        self.model.tasks,
                                                        rule=rule)
 

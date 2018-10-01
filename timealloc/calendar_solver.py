@@ -17,7 +17,7 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 4e2  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 2e2  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -174,9 +174,9 @@ class CalendarSolver:
         """ Objective function to minimize """
 
         def obj_expression(model):
-            return -(model.A_total + model.CTu_total + model.CTl_total +
-                     model.S_total)
-            # return -(model.A_total)
+            # return -(model.A_total + model.CTu_total + model.CTl_total +
+            #          model.S_total)
+            return -(model.A_total)
             # model.A_total + model.CTu / self.slack_cont + model.CTl /
             # self.slack_cont)
             # return -(summation(self.utilities, model.A) + summation(

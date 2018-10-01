@@ -103,9 +103,9 @@ class TaskParser:
         tasks_dict = {}
         running_total = 0
 
-        work_h2 = [h2.next for h2 in soup.find_all("h2")].index(heading)
-        work_tasks_ul = headings[work_h2].next.next.next
-        for top in work_tasks_ul.children:
+        h2 = [h2.next for h2 in soup.find_all("h2")].index(heading)
+        tasks_ul = headings[h2].next.next.next
+        for top in tasks_ul.children:
             if not isinstance(top, NavigableString):
                 # print('Tag:', top.next)
                 task = top.next

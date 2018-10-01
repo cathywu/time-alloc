@@ -245,8 +245,19 @@ solve_time = time.time() - start_ts
 cal.visualize()
 
 cal.display()
-array = np.reshape([y for (x, y) in cal.instance.A.get_values().items()],
-                   (NUMSLOTS, num_tasks))
+array1 = np.reshape(
+    [y for (x, y) in cal.instance.A.get_values().items()],
+    (cal.num_timeslots, cal.num_tasks))
+array1 = np.round(array1)
+
+array2 = np.reshape(
+    [y for (x, y) in cal.instance.A2.get_values().items()],
+    (cal.num_timeslots, cal.num_tasks))
+array2 = np.round(array2)
+
+array = array1
+array += array2
+array[1:, :] += array2[:-1, :]
 print("Schedule (timeslot x task):")
 print(array)
 print('Solve time', solve_time)

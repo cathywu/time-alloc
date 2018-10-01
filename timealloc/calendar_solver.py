@@ -17,7 +17,7 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 2e2  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 4e2  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -79,6 +79,7 @@ class CalendarSolver:
         self.model.tasks = RangeSet(0, self.num_tasks - 1)
         self.model.categories = RangeSet(0, self.num_categories - 1)
         self.model.timeslots = RangeSet(0, self.num_timeslots - 1)
+        self.model.timeslots2 = RangeSet(0, self.num_timeslots - 2)
         self.model.dtimeslots = RangeSet(0, self.num_timeslots - 2)
 
         # Fill pyomo Params from user params
@@ -107,6 +108,12 @@ class CalendarSolver:
                            domain=pe.Boolean, initialize=0)
         # Total utility of allocation A
         self.model.A_total = Var(domain=pe.Reals)
+
+        # Multi-resolution allocation
+        # FIXME(cathywu) for now, support A"1" and A2
+        self.model.A2 = Var(self.model.timeslots * self.model.tasks,
+                            domain=pe.Boolean, initialize=0)
+        self.model.A2_total = Var(domain=pe.Reals)
 
         # Slots within a day
         self.model.intradayslots = RangeSet(0, self.num_timeslots/7-1)  # 7 days
@@ -176,7 +183,7 @@ class CalendarSolver:
         def obj_expression(model):
             # return -(model.A_total + model.CTu_total + model.CTl_total +
             #          model.S_total)
-            return -(model.A_total)
+            return -(model.A_total + model.A2_total)
             # model.A_total + model.CTu / self.slack_cont + model.CTl /
             # self.slack_cont)
             # return -(summation(self.utilities, model.A) + summation(
@@ -196,10 +203,14 @@ class CalendarSolver:
 
         def rule(model, k):
             ind_i = model.timeslots
+            ind_i2 = model.timeslots2
             ind_j = model.tasks
             cat_k_total = sum(
                 model.A[i, j] * self.task_category[j, k] for i in ind_i for j in
                 ind_j)
+            cat_k_total += 2 * sum(
+                model.A2[i, j] * self.task_category[j, k] for i in ind_i2 for j
+                in ind_j)
             return model.C_total[k] == cat_k_total
 
         self.model.constrain_cat_duration0 = Constraint(self.model.categories,
@@ -255,8 +266,21 @@ class CalendarSolver:
             return 0, model.A[i, j] * (1-self.valid[i, j]), 0
 
         self.model.constrain_valid = Constraint(self.model.timeslots,
-                                                self.model.tasks,
-                                                rule=rule)
+                                                self.model.tasks, rule=rule)
+
+        def rule(model, i, j):
+            return 0, model.A2[i, j] * (1 - self.valid[i, j]), 0
+
+        self.model.constrain_valid0 = Constraint(self.model.timeslots,
+                                                 self.model.tasks, rule=rule)
+
+        def rule(model, i, j):
+            if i == self.num_timeslots-1:
+                return model.A2[i, j] == 0
+            return 0, model.A2[i, j] * (1-self.valid[i+1, j]), 0
+
+        self.model.constrain_valid1 = Constraint(self.model.timeslots,
+                                                 self.model.tasks, rule=rule)
 
     def _constraints_nonoverlapping_tasks(self):
         """
@@ -266,7 +290,11 @@ class CalendarSolver:
         """
 
         def rule(model, i):
-            return 0, sum(model.A[i, j] for j in model.tasks), 1
+            total = sum(model.A[i, j] for j in model.tasks)
+            total += sum(model.A2[i, j] for j in model.tasks)
+            if i != 0:
+                total += sum(model.A2[i-1, j] for j in model.tasks)
+            return 0, total, 1
 
         self.model.constrain_nonoverlapping = Constraint(self.model.timeslots,
                                                          rule=rule)
@@ -289,6 +317,7 @@ class CalendarSolver:
 
         def rule(model, j):
             task_j_total = sum(model.A[i, j] for i in model.timeslots)
+            task_j_total += 2 * sum(model.A2[i, j] for i in model.timeslots2)
             return 0, task_j_total, self.task_duration[j]
 
         self.model.constrain_task_duration = Constraint(self.model.tasks,
@@ -304,6 +333,12 @@ class CalendarSolver:
             return model.A_total == total
 
         self.model.constrain_A_total = Constraint(rule=rule)
+
+        def rule(model):
+            total = 2*summation(self.utilities, model.A2)
+            return model.A2_total == total
+
+        self.model.constrain_A2_total = Constraint(rule=rule)
 
     def _constraints_category_days(self):
         """
@@ -480,7 +515,9 @@ class CalendarSolver:
             """
             den = sum(diag[p, :])
             ind_i = model.timeslots
-            total = sum(diag[p, i] * model.A[i, j] for i in ind_i) / den
+            total = sum(
+                diag[p, i] * (model.A[i, j] + model.A2[i, j]) for i in ind_i)\
+                    / den
             # Desired: S[i,j] = ceil(total)
             # Desired: S[i,j] = 0 if total <= 0; otherwise, S[i,j] = 1
             return -EPS, model.S[p, j] - total, 1 - EPS
@@ -522,7 +559,9 @@ class CalendarSolver:
             active = 1-self.task_spread[j]
             den = sum(triu[i, :])
             ind = model.timeslots
-            total = sum(triu[i, k] * (1-model.A[k, j]) for k in ind) / den
+            total = sum(triu[i, k] * (1-model.A[k, j]-model.A2[k, j]) for k in
+                        ind)
+            total /= den
             total *= active
             # CTu[i,j] = floor(total)
             return -1 + EPS, model.CTu[i, j] - total, EPS + self.slack_cont
@@ -545,7 +584,9 @@ class CalendarSolver:
             active = 1-self.task_spread[j]
             den = sum(tril[i, :])
             ind = model.timeslots
-            total = sum(tril[i, k] * (1-model.A[k, j]) for k in ind) / den
+            total = sum(
+                tril[i, k] * (1 - model.A[k, j] - model.A2[k, j]) for k in ind)
+            total /= den
             total *= active
             return -1 + EPS, model.CTl[i, j] - total, EPS + self.slack_cont
 
@@ -568,6 +609,65 @@ class CalendarSolver:
             return model.CTl_total == total
 
         self.model.constrain_contiguity_lt = Constraint(rule=rule)
+
+    def _constraints_task_resolutions(self):
+
+        def rule(model, i, j):
+            """
+            Task can only be assigned at at most one resolution
+            """
+            return 0, model.A[i, j] + model.A2[i, j], 1
+
+        self.model.constrain_resolutions0 = Constraint(self.model.timeslots,
+                                                self.model.tasks,
+                                                rule=rule)
+
+        def rule(model, i, j):
+            if i == 0:
+                return Constraint.Feasible
+            return 0, model.A[i, j] + model.A2[i-1, j], 1
+
+        self.model.constrain_resolutions1 = Constraint(self.model.timeslots,
+                                                self.model.tasks,
+                                                rule=rule)
+
+        def rule(model, i, j):
+            """
+            Consecutive slots in A2 cannot be assigned
+            """
+            if i == 0:
+                return Constraint.Feasible
+            return 0, model.A2[i, j] + model.A2[i-1, j], 1
+
+        self.model.constrain_resolutions2 = Constraint(self.model.timeslots,
+                                                       self.model.tasks,
+                                                       rule=rule)
+
+        def rule(model, i, j):
+            """
+            Tasks with min chunk length of 2+ cannot be scheduled at the A'1'
+            resolution
+            """
+            if self.task_chunk_min[j] >= 2:
+                return model.A[i, j] == 0
+            return Constraint.Feasible
+
+        self.model.constrain_resolutions3 = Constraint(self.model.timeslots,
+                                                       self.model.tasks,
+                                                       rule=rule)
+
+        def rule(model, i, j):
+            """
+            Tasks with max chunk length of 1 cannot be scheduled at the A2
+            resolution
+            """
+            if self.task_chunk_max[j] <= 1:
+                return model.A2[i, j] == 0
+            return Constraint.Feasible
+
+        self.model.constrain_resolutions3 = Constraint(self.model.timeslots,
+                                                       self.model.tasks,
+                                                       rule=rule)
 
     def _get_chunk_parameters(self, chunk_len, offset, mode):
         """
@@ -1029,12 +1129,14 @@ class CalendarSolver:
         self._constraints_task_spread()
         self._constraints_category_days()
 
+        self._constraints_task_resolutions()
+
         # self._constraints_switching_bounds()  # instead of chunking
         # constraints
         # FIXME this might be horrendously slow
         # self._constraints_dependencies()  # de-prioritized
 
-        self._constraints_chunking1m()
+        # self._constraints_chunking1m()
         # self._constraints_chunking2m()
         # self._constraints_chunking3m()
         # self._constraints_chunking4m()
@@ -1082,10 +1184,19 @@ class CalendarSolver:
         COLORS = d3['Category20c'][20] + d3['Category20b'][20]
         COLORS_CAT = d3['Category20'][20]
 
-        array = np.reshape(
+        array1 = np.reshape(
             [y for (x, y) in self.instance.A.get_values().items()],
             (self.num_timeslots, self.num_tasks))
-        array = np.round(array)
+        array1 = np.round(array1)
+
+        array2 = np.reshape(
+            [y for (x, y) in self.instance.A2.get_values().items()],
+            (self.num_timeslots, self.num_tasks))
+        array2 = np.round(array2)
+
+        array = array1
+        array += array2
+        array[1:, :] += array2[:-1, :]
 
         times, tasks = array.nonzero()
         bottom = (times % (24 * tutil.SLOTS_PER_HOUR)) / tutil.SLOTS_PER_HOUR

@@ -162,13 +162,6 @@ class CalendarSolver:
         # Category durations
         self.model.C_total = Var(self.model.categories, domain=pe.Reals,
                                  initialize=0)
-        # Delta D
-        # TODO(cathywu) consider whether this / switching constraints are needed
-        self.model.D = Var(self.model.dtimeslots * self.model.tasks,
-                           domain=pe.Boolean, initialize=0)
-        # Number of switches
-        self.model.D_total = Var(self.model.tasks, domain=pe.Integers,
-                                 initialize=0)
 
     def _objective_switching(self):
         """
@@ -457,6 +450,48 @@ class CalendarSolver:
         self.model.constrain_cat_days3 = Constraint(self.model.categories,
                                                     rule=rule)
 
+    def _constraints_task_chunks(self):
+
+        def rule(model, j):
+            """
+            Disable allocation at resolutions smaller than permitted chunk_min
+            """
+            ind_i = model.timeslots
+            if self.task_chunk_min[j] == 2:
+                total = sum(model.A[i, j] for i in ind_i)
+                return None, total, 0
+            elif self.task_chunk_min[j] == 3:
+                total = sum(model.A[i, j] + model.A2[i, j] for i in ind_i)
+                return None, total, 0
+            elif self.task_chunk_min[j] >= 4:
+                total = sum(
+                    model.A[i, j] + model.A2[i, j] + model.A3[i, j] for i in
+                    ind_i)
+                return None, total, 0
+            return Constraint.Feasible
+
+        self.model.constrain_chunk_min = Constraint(self.model.tasks, rule=rule)
+
+        def rule(model, j):
+            """
+            Disable allocation at resolutions larger than permitted chunk_max
+            """
+            ind_i = model.timeslots
+            if self.task_chunk_max[j] <= 1:
+                total = sum(
+                    model.A2[i, j] + model.A3[i, j] + model.A4[i, j] for i in
+                    ind_i)
+                return None, total, 0
+            elif self.task_chunk_max[j] <= 2:
+                total = sum(model.A3[i, j] + model.A4[i, j] for i in ind_i)
+                return None, total, 0
+            elif self.task_chunk_max[j] <= 3:
+                total = sum(model.A4[i, j] for i in ind_i)
+                return None, total, 0
+            return Constraint.Feasible
+
+        self.model.constrain_chunk_max = Constraint(self.model.tasks, rule=rule)
+
     def _constraints_dependencies(self):
         """
         Before/after task dependencies
@@ -641,48 +676,6 @@ class CalendarSolver:
 
         self.model.constrain_contiguity_lt = Constraint(rule=rule)
 
-    def _constraints_task_chunks(self):
-
-        def rule(model, j):
-            """
-            Disable allocation at resolutions smaller than permitted chunk_min
-            """
-            ind_i = model.timeslots
-            if self.task_chunk_min[j] == 2:
-                total = sum(model.A[i, j] for i in ind_i)
-                return None, total, 0
-            elif self.task_chunk_min[j] == 3:
-                total = sum(model.A[i, j] + model.A2[i, j] for i in ind_i)
-                return None, total, 0
-            elif self.task_chunk_min[j] >= 4:
-                total = sum(
-                    model.A[i, j] + model.A2[i, j] + model.A3[i, j] for i in
-                    ind_i)
-                return None, total, 0
-            return Constraint.Feasible
-
-        self.model.constrain_chunk_min = Constraint(self.model.tasks, rule=rule)
-
-        def rule(model, j):
-            """
-            Disable allocation at resolutions larger than permitted chunk_max
-            """
-            ind_i = model.timeslots
-            if self.task_chunk_max[j] <= 1:
-                total = sum(
-                    model.A2[i, j] + model.A3[i, j] + model.A4[i, j] for i in
-                    ind_i)
-                return None, total, 0
-            elif self.task_chunk_max[j] <= 2:
-                total = sum(model.A3[i, j] + model.A4[i, j] for i in ind_i)
-                return None, total, 0
-            elif self.task_chunk_max[j] <= 3:
-                total = sum(model.A4[i, j] for i in ind_i)
-                return None, total, 0
-            return Constraint.Feasible
-
-        self.model.constrain_chunk_max = Constraint(self.model.tasks, rule=rule)
-
     def _construct_ip(self):
         """
         Aggregates MIP construction
@@ -735,7 +728,6 @@ class CalendarSolver:
         self.instance.CTl_total.display()
         self.instance.S_cat_total.display()
         self.instance.C_total.display()
-        # self.instance.D_total.display()
 
     def visualize(self):
         """

@@ -56,11 +56,16 @@ category_min = np.zeros(num_categories)
 category_max = NUMSLOTS * np.ones(num_categories)
 
 # FIXME(cathywu) have non-uniform utilities
-utilities = np.ones((NUMSLOTS, num_tasks))
+utilities = 0.5 * np.ones((NUMSLOTS, num_tasks))
 # Fewer points for scheduling 'other' tasks
-utilities[:, num_work_tasks:] = 0.5  # TODO parameterize this
+utilities[:, num_work_tasks:] = 0.333  # TODO parameterize this
 # Fewer points for scheduling default tasks
-utilities[:, num_work_tasks+num_other_tasks:] = 0.25  # TODO parameterize this
+utilities[:, num_work_tasks + num_other_tasks:] = 0  # TODO parameterize this
+
+# Completion bonus for fully scheduling tasks
+completion_bonus = 0.5 * np.ones(num_tasks)
+completion_bonus[num_work_tasks:] = 0.333
+completion_bonus[num_work_tasks + num_other_tasks:] = 0
 
 # contiguous (0) or spread (1) scheduling; default is contiguous (0)
 task_spread = np.zeros(num_tasks)
@@ -239,6 +244,7 @@ params = {
     'task_chunk_max': task_chunk_max,
     'task_names': task_names,
     'task_spread': task_spread,
+    'task_completion_bonus': completion_bonus,
     'task_before': before,
     'task_after': after,
 }

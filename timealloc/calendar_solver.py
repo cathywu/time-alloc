@@ -17,7 +17,7 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 2e3  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 2000  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -55,6 +55,7 @@ class CalendarSolver:
         self.task_duration = params['task_duration']
         self.task_chunk_min = params['task_chunk_min']
         self.task_chunk_max = params['task_chunk_max']
+        self.task_completion_bonus = params['task_completion_bonus']
         self.task_before = params['task_before']
         self.task_after = params['task_after']
 
@@ -112,8 +113,7 @@ class CalendarSolver:
         # Total utility of allocation A
         self.model.A_total = Var(domain=pe.Reals)
 
-        # Multi-resolution allocation
-        # FIXME(cathywu) for now, support A"1", A2, A3
+        # Multi-resolution allocation (size 1-4 chunks)
         self.model.A2 = Var(self.model.timeslots * self.model.tasks,
                             domain=pe.Boolean, initialize=0)
         self.model.A2_total = Var(domain=pe.Reals)
@@ -123,6 +123,11 @@ class CalendarSolver:
         self.model.A4 = Var(self.model.timeslots * self.model.tasks,
                             domain=pe.Boolean, initialize=0)
         self.model.A4_total = Var(domain=pe.Reals)
+
+        # Completion bonus
+        self.model.T_total = Var(self.model.tasks, domain=pe.Integers,
+                                 initialize=0)
+        self.model.Completion_total = Var(domain=pe.Reals)
 
         # Slots within a day
         self.model.intradayslots = RangeSet(0, self.num_timeslots/7-1)  # 7 days
@@ -186,6 +191,7 @@ class CalendarSolver:
         def obj_expression(model):
             total = model.A_total + model.A2_total + model.A3_total + \
                     model.A4_total
+            total += model.Completion_total
             total += model.CTu_total + model.CTl_total + model.S_total
             return -total
 
@@ -388,7 +394,21 @@ class CalendarSolver:
             task_j_total += 4 * sum(model.A4[i, j] for i in model.timeslots4)
             return 0, task_j_total, self.task_duration[j]
 
-        self.model.constrain_task_duration = Constraint(self.model.tasks,
+        self.model.constrain_task_duration0 = Constraint(self.model.tasks,
+                                                        rule=rule)
+
+        def rule(model, j):
+            """
+            Task completion variables
+            """
+            task_j_total = sum(model.A[i, j] for i in model.timeslots)
+            task_j_total += 2 * sum(model.A2[i, j] for i in model.timeslots2)
+            task_j_total += 3 * sum(model.A3[i, j] for i in model.timeslots3)
+            task_j_total += 4 * sum(model.A4[i, j] for i in model.timeslots4)
+            task_j_completion = task_j_total / self.task_duration[j]
+            return -1 + EPS, model.T_total[j] - task_j_completion, EPS
+
+        self.model.constrain_task_duration1 = Constraint(self.model.tasks,
                                                         rule=rule)
 
     def _constraints_utility(self):
@@ -419,6 +439,13 @@ class CalendarSolver:
             return model.A4_total == total
 
         self.model.constrain_A4_total = Constraint(rule=rule)
+
+        def rule(model):
+            completion_bonus = self.task_completion_bonus * self.task_duration
+            total = summation(completion_bonus, model.T_total)
+            return model.Completion_total == total
+
+        self.model.constrain_Completion_total = Constraint(rule=rule)
 
     def _constraints_category_days(self):
         """

@@ -35,10 +35,6 @@ task_names += other_task_names
 task_names += category_names  # use category name as default task name
 num_tasks = num_work_tasks + num_other_tasks + num_categories
 
-print("All task names:")
-for i, task in enumerate(task_names):
-    print(i, task)
-
 # TODO clean up
 task_duration = NUMSLOTS * np.ones(num_tasks)  # initialize task duration as 1 slot
 task_chunk_min = DEFAULT_CHUNK_MIN * np.ones(num_tasks)
@@ -120,10 +116,6 @@ for k, cat in enumerate(category_names):
         else:
             print('Not yet handled key ({}) for {}'.format(key, cat))
 overall_mask[:, -num_categories:] = category_masks
-
-print("Category min/max:")
-print(category_min)
-print(category_max)
 
 # OTHER TASKS
 offset = num_work_tasks
@@ -211,6 +203,14 @@ for i, task in enumerate(tasks.work_tasks.keys()):
     overall_mask[:, i] = np.array(np.logical_and(overall_mask[:, i], work_mask),
                                   dtype=int)
     # print(overall_mask.reshape((7,int(overall_mask.size/7))))
+
+print("All task names:")
+for i, task in enumerate(task_names):
+    print(i, task)
+
+print("Category min/max:")
+print(category_min)
+print(category_max)
 
 print('Chunks min/max:')
 print(task_chunk_min)

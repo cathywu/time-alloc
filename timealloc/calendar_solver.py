@@ -17,7 +17,7 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 2e2  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 4e2  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -773,21 +773,20 @@ class CalendarSolver:
         print("Task realizations:")
         task_sort_ind = np.argsort(self.task_duration)[::-1]
         for i in task_sort_ind:
-            print('{:2.0f} [{:2.0f}] {} ({})'.format(
+            print('{:2.0f} [{:3.0f}] {} ({})'.format(
                 self.task_duration_realized[i], self.task_duration[i],
                 self.task_names[i], i))
         # Display category realizations (ordered by decreasing category_min)
         print("Category realizations:")
         cat_sort_ind = np.argsort(self.category_min)[::-1]
         for i in cat_sort_ind:
-            print('{:2.0f} [{:2.0f}, {:2.0f}] {} ({})'.format(
+            print('{:2.0f} [{:3.0f}, {:3.0f}] {} ({})'.format(
                 self.category_duration_realized[i], self.category_min[i],
                 self.category_max[i], self.cat_names[i], i))
 
     def visualize(self):
         """
         Visualization of calendar tasks, with hover for more details
-        :return:
         """
         COLORS = d3['Category20c'][20] + d3['Category20b'][20]
         COLORS_CAT = d3['Category20'][20]

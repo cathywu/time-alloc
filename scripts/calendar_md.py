@@ -5,14 +5,13 @@ import time
 
 import numpy as np
 
-from timealloc.calendar_solver import CalendarSolver
+from timealloc.calendar_solver import CalendarSolver, NUMSLOTS
 from timealloc.task_parser import TaskParser
 import timealloc.util_time as tutil
 
 DEFAULT_CHUNK_MIN = 2  # in IP slot units
 DEFAULT_CHUNK_MAX = 20  # in IP slot units
 MODIFIERS = ['after', 'before', 'at', 'on']
-NUMSLOTS = 24 * 7 * tutil.SLOTS_PER_HOUR
 
 # User specified input files
 # time_allocation_fname = "scratch/time-allocation-2018-09-28-simple.md"

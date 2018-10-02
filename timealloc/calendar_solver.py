@@ -17,13 +17,14 @@ import timealloc.util_time as tutil
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 4e2  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 2e3  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
 
 # slack for contiguity variables (larger --> easier problem)
 SLACK = 5
+NUMSLOTS = 24 * 7 * tutil.SLOTS_PER_HOUR
 
 
 class CalendarSolver:
@@ -773,16 +774,27 @@ class CalendarSolver:
         print("Task realizations:")
         task_sort_ind = np.argsort(self.task_duration)[::-1]
         for i in task_sort_ind:
-            print('{:2.0f} [{:3.0f}] {} ({})'.format(
-                self.task_duration_realized[i], self.task_duration[i],
-                self.task_names[i], i))
+            if self.task_duration[i] != self.task_duration_realized[i] and \
+                            self.task_duration[i] != NUMSLOTS:
+                print('{:2.0f} [{:3.0f}] {} ({}) INCOMPLETE'.format(
+                    self.task_duration_realized[i], self.task_duration[i],
+                    self.task_names[i], i))
+            else:
+                print('{:2.0f} [{:3.0f}] {} ({})'.format(
+                    self.task_duration_realized[i], self.task_duration[i],
+                    self.task_names[i], i))
         # Display category realizations (ordered by decreasing category_min)
         print("Category realizations:")
         cat_sort_ind = np.argsort(self.category_min)[::-1]
         for i in cat_sort_ind:
-            print('{:2.0f} [{:3.0f}, {:3.0f}] {} ({})'.format(
-                self.category_duration_realized[i], self.category_min[i],
-                self.category_max[i], self.cat_names[i], i))
+            if self.category_min[i] != self.category_duration_realized[i]:
+                print('{:2.0f} [{:3.0f}, {:3.0f}] {} ({}) EXTRA'.format(
+                    self.category_duration_realized[i], self.category_min[i],
+                    self.category_max[i], self.cat_names[i], i))
+            else:
+                print('{:2.0f} [{:3.0f}, {:3.0f}] {} ({})'.format(
+                    self.category_duration_realized[i], self.category_min[i],
+                    self.category_max[i], self.cat_names[i], i))
 
     def visualize(self):
         """

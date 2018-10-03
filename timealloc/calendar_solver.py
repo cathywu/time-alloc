@@ -17,7 +17,7 @@ from timealloc.util_time import NUMSLOTS
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 1000  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 1200  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
 CONT_STRIDE = 12
@@ -810,6 +810,8 @@ class CalendarSolver:
         self.category_duration_realized = np.array(
             [y for (x, y) in self.instance.C_total.get_values().items()])
 
+        self.affinity = np.outer(AFFINITY_COGNITIVE, self.task_cognitive_load)
+
     def display(self):
         # self.instance.display()  # Displays everything
         self.instance.A_total.display()
@@ -865,6 +867,10 @@ class CalendarSolver:
         right = left + 0.95
         chunk_min = [self.task_chunk_min[k] for k in tasks]
         chunk_max = [self.task_chunk_max[k] for k in tasks]
+        affinity_cog_task = [self.task_cognitive_load[j] for j in tasks]
+        affinity_cog_slot = [AFFINITY_COGNITIVE[i] for i in times]
+        affinity_cognitive = (np.array(affinity_cog_task) * np.array(
+            affinity_cog_slot)).tolist()
         duration = [self.task_duration[k] for k in tasks]
         task_names = [self.task_names[k] for k in tasks]
         category_ids = [[l for l, j in enumerate(array) if j != 0] for array in
@@ -884,6 +890,9 @@ class CalendarSolver:
             right=right,
             chunk_min=chunk_min,
             chunk_max=chunk_max,
+            affinity_cognitive=affinity_cognitive,
+            affinity_cog_slot=affinity_cog_slot,
+            affinity_cog_task=affinity_cog_task,
             duration=duration,
             task_id=tasks,
             task=task_names,
@@ -896,6 +905,9 @@ class CalendarSolver:
                     ("category", "@category"),
                     ("duration", "@duration"),
                     ("chunk_range", "(@chunk_min, @chunk_max)"),
+                    ("affinity [slot x task]", "@affinity_cognitive = "
+                                               "@affinity_cog_slot x "
+                                               "@affinity_cog_task"),
                     ("(t,l)", "(@top, @left)"),
                     ("index", "$index"),
                     ]

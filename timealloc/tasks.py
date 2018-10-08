@@ -3,6 +3,7 @@ import numpy as np
 from timealloc.task_parser import TaskParser
 from timealloc.util_time import NUMSLOTS
 import timealloc.util_time as tutil
+import timealloc.config_affinity as c
 
 DEFAULT_CHUNK_MIN = 2  # in IP slot units
 DEFAULT_CHUNK_MAX = 20  # in IP slot units
@@ -29,11 +30,20 @@ class Tasks:
         self.num_tasks = self.num_work_tasks + self.num_other_tasks + \
                          self.num_categories
 
+        # Plan from now
+        # TODO(cathywu) specify a plan from time
+        # self.start = datetime.today()
+        # FIXME(cathywu) partial implementation
+        # weekday = (self.start.weekday() + 2) % 7
+        # offset = weekday * tutil.SLOTS_PER_DAY + self.start.hour * \
+        #                                          tutil.SLOTS_PER_HOUR
+
         self._default_attributes()
         self._read_category_attributes()
         self._read_other_task_attributes()
         self._read_work_task_attributes()
         self._permit_short_tasks()
+        self._shift_category_days()
         self._checks()
 
     def _default_attributes(self):
@@ -91,8 +101,10 @@ class Tasks:
         self.overall_mask = np.ones((NUMSLOTS, self.num_tasks))
 
     def _read_category_attributes(self):
-        # CATEGORIES
-        # Read out per-category attributes
+        """
+        CATEGORIES
+        Read out per-category attributes
+        """
         offset = self.num_work_tasks + self.num_other_tasks
         for k, cat in enumerate(self.category_names):
             # categories for default tasks
@@ -101,8 +113,10 @@ class Tasks:
             for key in self.tasks.time_alloc[cat]:
                 if key == "when":
                     for clause in self.tasks.time_alloc[cat][key]:
-                        sub_mask = tutil.modifier_mask(clause,
-                                                       self.category_min[k])
+                        sub_mask = tutil.modifier_mask(clause, start=c.START,
+                                                       total=self.category_min[
+                                                           k], weekno=c.WEEKNO,
+                                                       year=c.YEAR)
                         self.category_masks[:, k] = np.array(
                             np.logical_and(self.category_masks[:, k], sub_mask),
                             dtype=int)
@@ -139,7 +153,9 @@ class Tasks:
         self.overall_mask[:, -self.num_categories:] = self.category_masks
 
     def _read_other_task_attributes(self):
-        # OTHER TASKS
+        """
+        OTHER TASKS
+        """
         offset = self.num_work_tasks
         for i, task in enumerate(self.other_task_names):
             total = self.tasks.other_tasks[task]["total"]
@@ -148,7 +164,10 @@ class Tasks:
             for key in self.tasks.other_tasks[task]:
                 if key == "when":
                     for clause in self.tasks.other_tasks[task][key]:
-                        sub_mask = tutil.modifier_mask(clause, total)
+                        sub_mask = tutil.modifier_mask(clause, start=c.START,
+                                                       total=total,
+                                                       weekno=c.WEEKNO,
+                                                       year=c.YEAR)
                         self.overall_mask[:, offset + i] = np.array(
                             np.logical_and(self.overall_mask[:, offset + i],
                                            sub_mask), dtype=int)
@@ -187,8 +206,10 @@ class Tasks:
                     print('Not yet handled key ({}) for {}'.format(key, task))
 
     def _read_work_task_attributes(self):
-        # WORK TASKS
-        # Working hours
+        """
+        WORK TASKS
+        Working hours
+        """
         work_category = self.category_names.index("Work")
         work_mask = self.category_masks[:, work_category]
         work_tasks = range(self.num_work_tasks)
@@ -205,7 +226,10 @@ class Tasks:
             for key in self.tasks.work_tasks[task]:
                 if key == "when":
                     for clause in self.tasks.work_tasks[task][key]:
-                        sub_mask = tutil.modifier_mask(clause, total)
+                        sub_mask = tutil.modifier_mask(clause, start=c.START,
+                                                       total=total,
+                                                       weekno=c.WEEKNO,
+                                                       year=c.YEAR)
                         self.overall_mask[:, i] = np.array(
                             np.logical_and(self.overall_mask[:, i], sub_mask),
                             dtype=int)
@@ -249,12 +273,22 @@ class Tasks:
             # print(overall_mask.reshape((7,int(overall_mask.size/7))))
 
     def _permit_short_tasks(self):
-        # Permit the scheduling of short tasks
+        """
+        Permit the scheduling of short tasks
+        """
         # TODO(cathywu) Permit the grouping of small tasks into larger ones? Like an
         # errands block
         for i in range(self.num_tasks):
             if self.task_chunk_min[i] > self.task_duration[i]:
                 self.task_chunk_min[i] = self.task_duration[i]
+
+    def _shift_category_days(self):
+        if c.START is None:
+            self.category_days_lookahead = self.category_days
+        else:
+            day = (c.START.weekday() + 2) % 7
+            self.category_days_lookahead = np.vstack(
+                (self.category_days[day:, :], self.category_days[:day, :]))
 
     def get_ip_params(self):
         # Prepare the IP
@@ -264,10 +298,10 @@ class Tasks:
             'category_names': self.category_names,
             'category_min': self.category_min,
             'category_max': self.category_max,
-            'category_days': self.category_days,  # e.g. M T W Sa Su
+            'category_days': self.category_days_lookahead,  # e.g. M T W Sa Su
             'category_total': self.category_days_total,  # e.g. 3 of 5 days
             'task_category': self.task_category,
-            'num_tasks': self.num_tasks,  # for category "work", privileged category 0
+            'num_tasks': self.num_tasks,
             'task_duration': self.task_duration,
             'task_valid': self.overall_mask,
             'task_chunk_min': self.task_chunk_min,
@@ -298,4 +332,3 @@ class Tasks:
         # Assert that all tasks have at least 1 category
         error = "There are tasks without categories"
         assert np.prod(self.task_category.sum(axis=1)) > 0, error
-

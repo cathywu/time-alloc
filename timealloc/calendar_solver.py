@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 
 from bokeh.palettes import d3
@@ -856,10 +858,20 @@ class CalendarSolver:
                     self.category_duration_realized[i], self.category_min[i],
                     self.category_max[i], self.cat_names[i], i))
 
-    def visualize(self):
+    def visualize(self, start=None):
         """
         Visualization of calendar tasks, with hover for more details
+
+        :param start: datetime object
+        :return:
         """
+        if start is None:
+            start = datetime.today()
+
+        # weekday = (start.weekday() + 2) % 7
+        # offset = weekday * tutil.SLOTS_PER_DAY + start.hour * tutil.SLOTS_PER_HOUR
+        # offset
+
         COLORS = d3['Category20c'][20] + d3['Category20b'][20]
         COLORS_CAT = d3['Category20'][20]
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import timedelta
 
 import numpy as np
 
@@ -929,7 +929,7 @@ class CalendarSolver:
 
         # [Bokeh] inverted axis range example:
         # https://groups.google.com/a/continuum.io/forum/#!topic/bokeh/CJAvppgQmKo
-        yr = Range1d(start=22.5, end=5.5)
+        yr = Range1d(start=22, end=5.25)
         # yr = Range1d(start=24.5, end=-0.5)
         xr = Range1d(start=-0.5, end=7.5)
         p = figure(plot_width=800, plot_height=600, y_range=yr, x_range=xr,
@@ -964,7 +964,8 @@ class CalendarSolver:
                 task_display.append(name)
         source2 = ColumnDataSource(data=dict(
             x=left,
-            y=top,  # abbreviated version of task
+            y=top,
+            # abbreviated version of task
             task=[k[:17] for k in task_display],
         ))
 
@@ -994,5 +995,19 @@ class CalendarSolver:
         ))
         p.multi_line(xs='xs', ys='ys', color='colors', line_width=4,
                      source=source3)
+
+        # Annotate columns with day of the week
+        source4 = ColumnDataSource(data=dict(
+            x=[k + 0.1 for k in range(tutil.LOOKAHEAD)],
+            y=[5.95 for _ in range(tutil.LOOKAHEAD)],
+            weekday=[(c.START + timedelta(k)).strftime("%A") for k in
+                     range(tutil.LOOKAHEAD)],
+        ))
+
+        # Annotate rectangles with task name
+        labels2 = LabelSet(x='x', y='y', text='weekday', level='glyph',
+                           x_offset=3, y_offset=-1, source=source4,
+                           text_font_size='10pt', render_mode='canvas')
+        p.add_layout(labels2)
 
         show(p)

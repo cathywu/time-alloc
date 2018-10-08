@@ -194,6 +194,14 @@ def modifier_mask(clause, start=None, total=0, weekno=39, year=2018):
 
 
 def parse_days(string):
+    """
+    Parses strings of the form "M Sa Su R F; 4" into a size-7 binary map and
+    a number of required days.
+    Special strings include "daily".
+
+    :param string:
+    :return:
+    """
     if string == "daily":
         return np.ones(7), 7
     else:

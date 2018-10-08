@@ -917,9 +917,10 @@ class CalendarSolver:
 
         # [Bokeh] inverted axis range example:
         # https://groups.google.com/a/continuum.io/forum/#!topic/bokeh/CJAvppgQmKo
-        yr = Range1d(start=24.5, end=-0.5)
+        yr = Range1d(start=22.5, end=5.5)
+        # yr = Range1d(start=24.5, end=-0.5)
         xr = Range1d(start=-0.5, end=7.5)
-        p = figure(plot_width=800, plot_height=800, y_range=yr, x_range=xr,
+        p = figure(plot_width=800, plot_height=600, y_range=yr, x_range=xr,
                    tooltips=TOOLTIPS, title="Calendar")
         self.p = p
         output_file("calendar.html")

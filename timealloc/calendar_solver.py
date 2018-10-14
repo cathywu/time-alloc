@@ -59,6 +59,7 @@ class CalendarSolver:
         self.task_chunk_max = params['task_chunk_max']
         self.task_completion_bonus = params['task_completion_bonus']
         self.task_cognitive_load = params['task_cognitive_load']
+        self.task_willpower_load = params['task_willpower_load']
         self.task_before = params['task_before']
         self.task_after = params['task_after']
 
@@ -398,6 +399,8 @@ class CalendarSolver:
         """
 
         def rule(model, j):
+            if self.task_duration[j] >= NUMSLOTS:
+                return Constraint.Feasible
             task_j_total = sum(model.A[i, j] for i in model.timeslots)
             task_j_total += 2 * sum(model.A2[i, j] for i in model.timeslots2)
             task_j_total += 3 * sum(model.A3[i, j] for i in model.timeslots3)
@@ -411,6 +414,8 @@ class CalendarSolver:
             """
             Task completion variables
             """
+            if self.task_duration[j] >= NUMSLOTS:
+                return model.T_total[j] == 0
             task_j_total = sum(model.A[i, j] for i in model.timeslots)
             task_j_total += 2 * sum(model.A2[i, j] for i in model.timeslots2)
             task_j_total += 3 * sum(model.A3[i, j] for i in model.timeslots3)
@@ -769,6 +774,24 @@ class CalendarSolver:
                                                      self.model.categories,
                                                      rule=rule)
 
+    def _constraints_willpower(self):
+
+        def rule(model):
+            """
+            Avoid willpower depletion.
+            Impose that the willpower expended over the week is non-positive.
+
+            slot * task assigned * duration * willpower scaling
+            """
+            ind_i = model.timeslots
+            ind_j = model.tasks
+            total = sum(self.task_willpower_load[j] * (
+                model.A[i, j] + 2 * model.A2[i, j] + 3 * model.A3[i, j] + 4 *
+                model.A4[i, j]) for i in ind_i for j in ind_j)
+            return None, total, 0
+
+        self.model.constrain_willpower0 = Constraint(rule=rule)
+
     def _construct_ip(self):
         """
         Aggregates MIP construction
@@ -791,6 +814,7 @@ class CalendarSolver:
         self._constraints_category_days()
         self._constraints_task_chunks()  # imposes chunk bounds
         self._constraints_category_daily_caps()
+        self._constraints_willpower()
 
         # FIXME this might be horrendously slow
         # self._constraints_dependencies()  # de-prioritized
@@ -865,6 +889,7 @@ class CalendarSolver:
         self.instance.CTl_total.display()
         self.instance.S_cat_total.display()
         self.instance.C_total.display()
+        self.instance.constrain_willpower0.display()
 
     def get_diagnostics(self):
         # Display task realizations (ordered by decreasing task_duration)
@@ -926,6 +951,7 @@ class CalendarSolver:
         affinity_cog_slot = [c.AFFINITY_COGNITIVE[i] for i in times]
         affinity_cognitive = (np.array(affinity_cog_task) * np.array(
             affinity_cog_slot)).tolist()
+        willpower_task = [self.task_willpower_load[j] for j in tasks]
         duration = [self.task_duration[k] for k in tasks]
         task_names = [self.task_names[k] for k in tasks]
         category_ids = [[l for l, j in enumerate(array) if j != 0] for array in
@@ -948,6 +974,7 @@ class CalendarSolver:
             affinity_cognitive=affinity_cognitive,
             affinity_cog_slot=affinity_cog_slot,
             affinity_cog_task=affinity_cog_task,
+            willpower_task=willpower_task,
             duration=duration,
             task_id=tasks,
             task=task_names,
@@ -959,6 +986,7 @@ class CalendarSolver:
                     ("desc", "@task_id"),
                     ("category", "@category"),
                     ("duration", "@duration"),
+                    ("willpower", "@willpower_task"),
                     ("chunk_range", "(@chunk_min, @chunk_max)"),
                     ("affinity [slot x task]", "@affinity_cognitive = "
                                                "@affinity_cog_slot x "

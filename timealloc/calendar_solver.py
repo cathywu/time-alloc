@@ -19,10 +19,10 @@ from timealloc.util_time import NUMSLOTS
 EPS = 1e-2  # epsilon
 
 # Time limit for solver (wallclock)
-TIMELIMIT = 500  # 3600, 1e3, 2e2, 50
+TIMELIMIT = 600  # 3600, 1e3, 2e2, 50
 
 # granularity (in hours) for contiguity variables (larger --> easier problem)
-CONT_STRIDE = 12
+CONT_STRIDE = tutil.HOURS_PER_DAY
 
 # slack for contiguity variables (larger --> easier problem)
 SLACK = 5
@@ -163,7 +163,7 @@ class CalendarSolver:
         self.model.S_cat_total = Var(self.model.categories, domain=pe.Integers)
 
         # Contiguity slots (half-days)
-        self.cont_incr = CONT_STRIDE * tutil.SLOTS_PER_HOUR
+        self.cont_incr = int(CONT_STRIDE * tutil.SLOTS_PER_HOUR)
         self.cont_slots = self.num_timeslots / self.cont_incr - 1
         self.model.contslots = RangeSet(0, self.cont_slots - 1)
         self.model.CTu = Var(self.model.contslots * self.model.tasks,

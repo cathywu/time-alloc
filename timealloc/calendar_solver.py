@@ -580,11 +580,17 @@ class CalendarSolver:
             Disable allocation at resolutions smaller than permitted chunk_min
             """
             ind_j = model.tasks
-            day_end = (p+1) * tutil.SLOTS_PER_DAY - 1
+            day_end = (p + 1) * tutil.SLOTS_PER_DAY - 1
             total = sum(model.A[day_end, j] for j in ind_j)
             total += sum(model.A2[day_end, j] for j in ind_j)
+            total += sum(model.A2[day_end - 1, j] for j in ind_j)
             total += sum(model.A3[day_end, j] for j in ind_j)
+            total += sum(model.A3[day_end - 1, j] for j in ind_j)
+            total += sum(model.A3[day_end - 2, j] for j in ind_j)
             total += sum(model.A4[day_end, j] for j in ind_j)
+            total += sum(model.A4[day_end - 1, j] for j in ind_j)
+            total += sum(model.A4[day_end - 2, j] for j in ind_j)
+            total += sum(model.A4[day_end - 3, j] for j in ind_j)
             return None, total, 0
 
         self.model.constrain_days_end = Constraint(self.model.dayslots,

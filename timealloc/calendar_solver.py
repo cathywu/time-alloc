@@ -1078,7 +1078,7 @@ class CalendarSolver:
 
         # Display task allocation as colored rectangles
         p.quad(top='top', bottom='bottom', left='left', right='right',
-               color='colors', source=source1)
+               color='colors', fill_alpha=0.7, source=source1)
 
         # Pre-process task names for display (no repeats, abbreviated names)
         # FIXME(cathywu) currently assumes that y is in time order, which may
@@ -1133,9 +1133,9 @@ class CalendarSolver:
         colors_will = [COLORS_WILL[i] for i in colors_will.tolist()]
         data6 = data_tooltips.copy()
         data6.update(dict(
-            top=(np.array(top) - 0.05).tolist(),
-            bottom=(np.array(bottom) + 0.05).tolist(),
-            left=(np.array(right) + 0.02).tolist(),
+            top=top,
+            bottom=bottom,
+            left=np.array(right) + 0.02,
             right=(np.array(right) + 0.1).tolist(),
             colors=colors_will,
         ))

@@ -1078,7 +1078,7 @@ class CalendarSolver:
 
         # Display task allocation as colored rectangles
         p.quad(top='top', bottom='bottom', left='left', right='right',
-               color='colors', fill_alpha=0.7, source=source1)
+               color='colors', fill_alpha=0.7, line_alpha=0.5, source=source1)
 
         # Pre-process task names for display (no repeats, abbreviated names)
         # FIXME(cathywu) currently assumes that y is in time order, which may
@@ -1096,7 +1096,7 @@ class CalendarSolver:
             x=left,
             y=top,
             # abbreviated version of task
-            task=[k[:17] for k in task_display],
+            task=[k[:19] for k in task_display],
         ))
         source2 = ColumnDataSource(data=data2)
 
